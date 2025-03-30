@@ -40,7 +40,7 @@ from datetime import datetime # Для времени создания
 # --- Конфигурация ---
 # --> ЛУЧШАЯ ПРАКТИКА: Загружать из переменных окружения <--
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "YOUR_FALLBACK_TOKEN") # ВАЖНО: Замените резервное значение или убедитесь, что переменная окружения установлена
-WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://YOUR_APP_DOMAIN/mini-app") # ВАЖНО: Установите URL вашего развернутого приложения
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://backend-r7sr.onrender.com/mini-app") # ВАЖНО: Установите URL вашего развернутого приложения
 DATABASE_NAME = os.environ.get("DATABASE_NAME", "ads.db") # Имя файла БД
 UPLOAD_FOLDER = 'uploads' # Папка для загруженных изображений
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'} # Разрешенные расширения файлов
