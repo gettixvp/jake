@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no, user-scalable=no, viewport-fit=cover">
+    <title>Поиск квартир</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      /* Предотвращение "дергания" при загрузке */
+      html { background-color: var(--tg-theme-bg-color, #ffffff); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>Аренда квартир</h1>
+            <button id="submit-ad-btn" class="button button-secondary">
+                 <span class="icon">➕</span> Подать объявление
+             </button>
+        </header>
+
+        <section class="filters">
+            <details class="filter-details">
+                 <summary class="filter-summary">
+                     <span class="icon">⚙️</span> Фильтры
+                 </summary>
+                 <div class="filter-content">
+                    <div class="filter-group">
+                        <label for="city-select">Город:</label>
+                        <select id="city-select">
+                            <option value="">Все города</option>
+                            </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="rooms-select">Комнаты:</label>
+                        <select id="rooms-select">
+                            <option value="">Любое</option>
+                            <option value="0">Студия</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4+</option> </select>
+                    </div>
+                    <div class="filter-group price-range">
+                        <label>Цена ($):</label>
+                        <input type="number" id="min-price" placeholder="от" inputmode="numeric" pattern="[0-9]*">
+                        <span class="separator">-</span>
+                        <input type="number" id="max-price" placeholder="до" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <button id="apply-filters-btn" class="button button-primary">
+                         <span class="icon">🔍</span> Применить
+                    </button>
+                 </div>
+            </details>
+        </section>
+
+        <section class="ads-list-section">
+            <div id="ads-list" class="ads-list">
+                <div id="loading-indicator" class="loading-indicator" style="display: none;">
+                    <div class="spinner"></div>
+                    Загрузка объявлений...
+                </div>
+                 <p id="no-results" class="no-results" style="display: none;">
+                    По вашим фильтрам ничего не найдено.<br>Попробуйте изменить параметры поиска.
+                 </p>
+            </div>
+            <button id="load-more-btn" class="button button-load-more" style="display: none;">
+                 <span class="icon">➕</span> Загрузить еще
+            </button>
+        </section>
+
+        <div id="submit-ad-modal" class="modal">
+             <div class="modal-content">
+                 <span class="close-button" title="Закрыть">&times;</span>
+                 <h2>Подать объявление</h2>
+                 <form id="submit-ad-form">
+                     <input type="hidden" id="user-id" name="user_id">
+
+                     <div class="form-group">
+                         <label for="ad-city">Город <span class="required">*</span></label>
+                         <select id="ad-city" name="city" required>
+                             <option value="" disabled selected>Выберите город...</option>
+                             </select>
+                     </div>
+                     <div class="form-group">
+                        <label for="ad-rooms">Комнаты <span class="required">*</span></label>
+                        <select id="ad-rooms" name="rooms" required>
+                           <option value="" disabled selected>Укажите...</option>
+                           <option value="0">Студия</option>
+                           <option value="1">1</option>
+                           <option value="2">2</option>
+                           <option value="3">3</option>
+                           <option value="4">4</option>
+                           <option value="5">5+</option>
+                       </select>
+                     </div>
+                     <div class="form-group">
+                        <label for="ad-price">Цена ($/месяц) <span class="required">*</span></label>
+                        <input type="number" id="ad-price" name="price" min="1" required placeholder="Например: 350" inputmode="numeric">
+                     </div>
+                     <div class="form-group">
+                        <label for="ad-address">Адрес (улица, дом) <span class="required">*</span></label>
+                        <input type="text" id="ad-address" name="address" required placeholder="Например: ул. Ленина, 10">
+                     </div>
+                     <div class="form-group">
+                        <label for="ad-description">Описание <span class="required">*</span></label>
+                        <textarea id="ad-description" name="description" rows="5" required placeholder="Расскажите подробнее о квартире, условиях аренды..."></textarea>
+                     </div>
+                     <div class="form-group">
+                        <label for="ad-phone">Контактный телефон <span class="required">*</span></label>
+                        <input type="tel" id="ad-phone" name="phone" required placeholder="+375 (XX) XXX-XX-XX" inputmode="tel">
+                     </div>
+                     <div class="form-group">
+                        <label for="ad-images">Фотографии (до 5 шт.)</label>
+                        <input type="file" id="ad-images" name="images" multiple accept="image/png, image/jpeg, image/webp">
+                        <small class="form-hint">Выберите одно или несколько изображений.</small>
+                     </div>
+
+                     <button type="submit" id="submit-form-btn" class="button button-primary">
+                        <span class="icon">✔️</span> Отправить на модерацию
+                     </button>
+                     <div id="submit-message" class="submit-message"></div>
+                 </form>
+             </div>
+        </div>
+
+
+    </div> <script src="script.js"></script>
+</body>
+</html>
