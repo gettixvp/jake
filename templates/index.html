@@ -79,35 +79,6 @@
             transform: scale(0.95);
         }
 
-        .range-slider {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 4px;
-            border-radius: 2px;
-            background: var(--tg-theme-secondary-bg-color);
-            outline: none;
-        }
-
-        .range-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: var(--tg-theme-button-color);
-            cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .range-slider::-moz-range-thumb {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: var(--tg-theme-button-color);
-            cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
         .custom-checkbox {
             position: relative;
             display: inline-block;
@@ -319,7 +290,6 @@
                 <div class="mb-4">
                     <label class="block text-sm font-medium mb-3 text-tg-hint">Цена (BYN)</label>
                     <div class="relative px-4 py-2 bg-tg-secondary rounded-xl">
-                        <input type="range" min="0" max="10000" value="5000" step="100" id="price-range" class="w-full range-slider mb-4">
                         <div class="flex justify-between mt-2 text-sm">
                             <input type="number" id="min_price" placeholder="От" class="w-24 px-3 py-2 bg-tg-bg text-tg-text border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-tg-link" min="0" max="10000">
                             <span class="text-tg-hint flex items-center">до</span>
@@ -413,7 +383,7 @@
         let isLoading = false;
         let hasMoreResults = true;
         let isDarkMode = tg.colorScheme === 'dark';
-        const LIMIT = 5; // Синхронизировано с бэкендом
+        const LIMIT = 5;
 
         document.addEventListener('DOMContentLoaded', () => {
             initApp();
@@ -426,7 +396,6 @@
             tg.expand();
             tg.ready();
             document.body.classList.toggle('dark', isDarkMode);
-            document.getElementById('price-range').value = 5000;
             document.getElementById('min_price').value = '';
             document.getElementById('max_price').value = '';
             tg.onEvent('themeChanged', () => {
@@ -491,11 +460,9 @@
             document.getElementById('load-more-btn').addEventListener('click', loadMoreAds);
             document.getElementById('fab-button').addEventListener('click', refreshAds);
 
-            document.getElementById('price-range').addEventListener('input', updatePriceInputs);
-            document.getElementById('min_price').addEventListener('input', updatePriceSlider);
-            document.getElementById('max_price').addEventListener('input', updatePriceSlider);
+            document.getElementById('min_price').addEventListener('input', validatePriceInputs);
+            document.getElementById('max_price').addEventListener('input', validatePriceInputs);
 
-            // Делегирование событий для карточек объявлений
             document.getElementById('results').addEventListener('click', (e) => {
                 const saveBtn = e.target.closest('.save-btn');
                 const viewBtn = e.target.closest('.view-btn');
@@ -769,7 +736,6 @@
             triggerHapticFeedback('light');
             document.getElementById('city').value = 'minsk';
             document.getElementById('rooms').value = 'any';
-            document.getElementById('price-range').value = 5000;
             document.getElementById('min_price').value = '';
             document.getElementById('max_price').value = '';
             currentPage = 1;
@@ -792,21 +758,17 @@
             });
         }
 
-        function updatePriceInputs() {
-            const slider = document.getElementById('price-range');
-            const minInput = document.getElementById('min_price');
-            minInput.value = slider.value;
-        }
-
-        function updatePriceSlider() {
-            const slider = document.getElementById('price-range');
+        function validatePriceInputs() {
             const minInput = document.getElementById('min_price');
             const maxInput = document.getElementById('max_price');
-            if (minInput.value) {
-                slider.value = Math.min(Math.max(parseInt(minInput.value) || 0, 0), 10000);
-            }
-            if (maxInput.value && minInput.value && parseInt(maxInput.value) < parseInt(minInput.value)) {
-                maxInput.value = minInput.value;
+            const minValue = parseInt(minInput.value) || 0;
+            const maxValue = parseInt(maxInput.value) || 0;
+            if (minValue < 0) minInput.value = 0;
+            if (maxValue < 0) maxInput.value = 0;
+            if (minValue > 10000) minInput.value = 10000;
+            if (maxValue > 10000) maxInput.value = 10000;
+            if (maxInput.value && minInput.value && maxValue < minValue) {
+                maxInput.value = minValue;
             }
         }
 
