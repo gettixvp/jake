@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telegram Flat Finder</title>
+    <title>Квартиры Kufar</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
@@ -21,6 +21,12 @@
             --primary-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }
 
+        .dark {
+            --glass-bg: rgba(30, 30, 30, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --primary-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
         body {
             background-color: var(--tg-theme-bg-color);
             color: var(--tg-theme-text-color);
@@ -30,9 +36,9 @@
             box-sizing: border-box;
             overflow-x: hidden;
             padding-bottom: 80px;
+            transition: background-color 0.3s, color 0.3s;
         }
 
-        /* Glassmorphism effects */
         .glass-card {
             background: var(--glass-bg);
             backdrop-filter: blur(12px);
@@ -40,9 +46,9 @@
             border-radius: 16px;
             border: 1px solid var(--glass-border);
             box-shadow: var(--primary-shadow);
+            transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
         }
 
-        /* 3D buttons */
         .btn-3d {
             transition: all 0.2s ease;
             position: relative;
@@ -54,7 +60,6 @@
             box-shadow: 0 0 0 transparent;
         }
 
-        /* Floating action button */
         .fab {
             width: 56px;
             height: 56px;
@@ -74,63 +79,166 @@
             transform: scale(0.95);
         }
 
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
+        .range-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--tg-theme-secondary-bg-color);
+            outline: none;
         }
 
-        ::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.05);
-            border-radius: 3px;
+        .range-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--tg-theme-button-color);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
-        ::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 3px;
+        .range-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--tg-theme-button-color);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
-        /* Dropdown menu */
-        .dropdown-menu {
-            transform-origin: top right;
-            transform: scale(0);
-            opacity: 0;
-            transition: all 0.15s ease-out;
-            pointer-events: none;
-            min-width: 180px;
+        .custom-checkbox {
+            position: relative;
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            background: transparent;
+            border: 2px solid var(--tg-theme-hint-color);
+            border-radius: 4px;
+            transition: all 0.2s;
         }
 
-        .dropdown-menu.active {
-            transform: scale(1);
-            opacity: 1;
-            pointer-events: all;
+        .custom-checkbox.checked {
+            background: var(--tg-theme-button-color);
+            border-color: var(--tg-theme-button-color);
         }
 
-        /* Ad card hover effect */
-        .ad-card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            transform-style: preserve-3d;
+        .custom-checkbox.checked::after {
+            content: '';
+            position: absolute;
+            left: 5px;
+            top: 2px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
         }
 
-        .ad-card:hover {
-            transform: translateY(-4px) translateZ(10px);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+        .sk-folding-cube {
+            margin: 20px auto;
+            width: 40px;
+            height: 40px;
+            position: relative;
+            -webkit-transform: rotateZ(45deg);
+            transform: rotateZ(45deg);
         }
 
-        /* Input focus glow */
-        input:focus, select:focus {
-            box-shadow: 0 0 0 3px rgba(51, 144, 236, 0.3);
+        .sk-folding-cube .sk-cube {
+            float: left;
+            width: 50%;
+            height: 50%;
+            position: relative;
+            -webkit-transform: scale(1.1);
+            -ms-transform: scale(1.1);
+            transform: scale(1.1);
         }
 
-        /* Bottom navigation */
-        .bottom-nav {
-            box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.08);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+        .sk-folding-cube .sk-cube:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--tg-theme-button-color);
+            -webkit-animation: sk-foldCubeAngle 2.4s infinite linear both;
+            animation: sk-foldCubeAngle 2.4s infinite linear both;
+            -webkit-transform-origin: 100% 100%;
+            -ms-transform-origin: 100% 100%;
+            transform-origin: 100% 100%;
+        }
+
+        .sk-folding-cube .sk-cube2 {
+            -webkit-transform: scale(1.1) rotateZ(90deg);
+            transform: scale(1.1) rotateZ(90deg);
+        }
+
+        .sk-folding-cube .sk-cube3 {
+            -webkit-transform: scale(1.1) rotateZ(180deg);
+            transform: scale(1.1) rotateZ(180deg);
+        }
+
+        .sk-folding-cube .sk-cube4 {
+            -webkit-transform: scale(1.1) rotateZ(270deg);
+            transform: scale(1.1) rotateZ(270deg);
+        }
+
+        .sk-folding-cube .sk-cube2:before {
+            -webkit-animation-delay: 0.3s;
+            animation-delay: 0.3s;
+        }
+
+        .sk-folding-cube .sk-cube3:before {
+            -webkit-animation-delay: 0.6s;
+            animation-delay: 0.6s;
+        }
+
+        .sk-folding-cube .sk-cube4:before {
+            -webkit-animation-delay: 0.9s;
+            animation-delay: 0.9s;
+        }
+
+        @-webkit-keyframes sk-foldCubeAngle {
+            0%, 10% {
+                -webkit-transform: perspective(140px) rotateX(-180deg);
+                transform: perspective(140px) rotateX(-180deg);
+                opacity: 0;
+            }
+            25%, 75% {
+                -webkit-transform: perspective(140px) rotateX(0deg);
+                transform: perspective(140px) rotateX(0deg);
+                opacity: 1;
+            }
+            90%, 100% {
+                -webkit-transform: perspective(140px) rotateY(180deg);
+                transform: perspective(140px) rotateY(180deg);
+                opacity: 0;
+            }
+        }
+
+        @keyframes sk-foldCubeAngle {
+            0%, 10% {
+                -webkit-transform: perspective(140px) rotateX(-180deg);
+                transform: perspective(140px) rotateX(-180deg);
+                opacity: 0;
+            }
+            25%, 75% {
+                -webkit-transform: perspective(140px) rotateX(0deg);
+                transform: perspective(140px) rotateX(0deg);
+                opacity: 1;
+            }
+            90%, 100% {
+                -webkit-transform: perspective(140px) rotateY(180deg);
+                transform: perspective(140px) rotateY(180deg);
+                opacity: 0;
+            }
         }
     </style>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -150,56 +258,41 @@
     </script>
 </head>
 <body class="min-h-screen bg-tg-secondary">
-    <!-- Header with dropdown -->
+    <!-- Header -->
     <header class="sticky top-0 z-40 bg-tg-bg shadow-sm">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
-            <h1 class="text-xl font-bold text-tg-text">Flat Finder</h1>
+            <h1 class="text-xl font-bold text-tg-text">Квартиры на Kufar</h1>
             <div class="relative">
-                <button id="menu-button" class="w-10 h-10 rounded-full bg-tg-button text-tg-buttonText flex items-center justify-center focus:outline-none">
+                <button id="menu-button" class="w-10 h-10 rounded-full bg-tg-button text-tg-buttonText flex items-center justify-center focus:outline-none hover:opacity-90 active:opacity-100 transition-opacity">
                     <i class="fas fa-ellipsis-v"></i>
                 </button>
-                <div id="dropdown-menu" class="dropdown-menu absolute right-0 mt-2 py-2 w-48 bg-white rounded-lg shadow-xl z-50 border border-gray-100">
-                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-tg-secondary">Saved search</a>
-                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-tg-secondary">Notifications</a>
-                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-tg-secondary">Help</a>
-                    <div class="border-t border-gray-200 my-1"></div>
-                    <a href="#" class="block px-4 py-2 text-sm text-red-500 hover:bg-tg-secondary">Sign out</a>
+                <div id="dropdown-menu" class="dropdown-menu absolute right-0 mt-2 py-2 w-48 bg-tg-bg rounded-lg shadow-xl z-50 border border-gray-200 dark:border-gray-700 hidden">
+                    <a href="#" class="block px-4 py-2 text-sm text-tg-text hover:bg-tg-secondary transition-colors" id="saved-search-btn">
+                        <i class="far fa-bookmark mr-2"></i> Избранное
+                    </a>
+                    <a href="#" class="block px-4 py-2 text-sm text-tg-text hover:bg-tg-secondary transition-colors" id="help-btn">
+                        <i class="far fa-question-circle mr-2"></i> Помощь
+                    </a>
                 </div>
             </div>
         </div>
     </header>
 
     <main class="container mx-auto px-4 py-2">
-        <!-- Main tabs -->
-        <div class="bg-white glass-card px-2 py-1 mb-6 rounded-2xl">
-            <div class="flex">
-                <button class="tab-button flex-1 py-3 px-2 text-center font-medium text-tg-text rounded-xl transition-all duration-200 active" data-tab="search">
-                    <i class="fas fa-search mr-2"></i> Search
-                </button>
-                <button class="tab-button flex-1 py-3 px-2 text-center font-medium text-tg-hint rounded-xl transition-all duration-200" data-tab="favorites">
-                    <i class="far fa-heart mr-2"></i> Saved
-                </button>
-                <button class="tab-button flex-1 py-3 px-2 text-center font-medium text-tg-hint rounded-xl transition-all duration-200" data-tab="history">
-                    <i class="far fa-clock mr-2"></i> History
-                </button>
-            </div>
-        </div>
-
         <!-- Tab content -->
-        <div id="search-content" class="tab-content active">
+        <div id="search-content" class="active">
             <form id="filter-form" class="mb-6 glass-card p-4">
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                        <label for="city" class="block text-sm font-medium mb-1 text-tg-hint">City</label>
+                        <label for="city" class="block text-sm font-medium mb-1 text-tg-hint">Город</label>
                         <div class="relative">
-                            <select id="city" name="city" class="w-full px-4 py-3 rounded-xl bg-tg-secondary border border-tg-secondary focus:border-tg-link focus:ring-1 focus:ring-tg-link appearance-none">
-                                <option value="any">Any city</option>
-                                <option value="minsk" selected>Minsk</option>
-                                <option value="vitebsk">Vitebsk</option>
-                                <option value="gomel">Gomel</option>
-                                <option value="brest">Brest</option>
-                                <option value="grodno">Grodno</option>
-                                <option value="mogilev">Mogilev</option>
+                            <select id="city" name="city" class="w-full px-4 py-3 rounded-xl bg-tg-secondary text-tg-text border border-tg-secondary focus:border-tg-link focus:ring-1 focus:ring-tg-link appearance-none">
+                                <option value="minsk">Минск</option>
+                                <option value="vitebsk">Витебск</option>
+                                <option value="gomel">Гомель</option>
+                                <option value="brest">Брест</option>
+                                <option value="grodno">Гродно</option>
+                                <option value="mogilev">Могилев</option>
                             </select>
                             <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                                 <i class="fas fa-chevron-down text-tg-hint"></i>
@@ -207,10 +300,10 @@
                         </div>
                     </div>
                     <div>
-                        <label for="rooms" class="block text-sm font-medium mb-1 text-tg-hint">Rooms</label>
+                        <label for="rooms" class="block text-sm font-medium mb-1 text-tg-hint">Комнаты</label>
                         <div class="relative">
-                            <select id="rooms" name="rooms" class="w-full px-4 py-3 rounded-xl bg-tg-secondary border border-tg-secondary focus:border-tg-link focus:ring-1 focus:ring-tg-link appearance-none">
-                                <option value="">Any</option>
+                            <select id="rooms" name="rooms" class="w-full px-4 py-3 rounded-xl bg-tg-secondary text-tg-text border border-tg-secondary focus:border-tg-link focus:ring-1 focus:ring-tg-link appearance-none">
+                                <option value="any">Любые</option>
                                 <option value="1">1</option>
                                 <option value="2">2</option>
                                 <option value="3">3</option>
@@ -224,119 +317,135 @@
                 </div>
 
                 <div class="mb-4">
-                    <label for="price-range" class="block text-sm font-medium mb-3 text-tg-hint">Price range ($)</label>
+                    <label class="block text-sm font-medium mb-3 text-tg-hint">Цена (BYN)</label>
                     <div class="relative px-4 py-2 bg-tg-secondary rounded-xl">
-                        <div id="price-range" class="h-1 bg-gray-300 rounded-full"></div>
-                        <div class="flex justify-between mt-4 text-sm">
-                            <input type="number" id="min_price" placeholder="Min" class="w-24 px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-tg-link">
-                            <input type="number" id="max_price" placeholder="Max" class="w-24 px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-tg-link">
+                        <input type="range" min="0" max="10000" value="5000" step="100" id="price-range" class="w-full range-slider mb-4">
+                        <div class="flex justify-between mt-2 text-sm">
+                            <input type="number" id="min_price" placeholder="От" class="w-24 px-3 py-2 bg-tg-bg text-tg-text border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-tg-link">
+                            <span class="text-tg-hint flex items-center">до</span>
+                            <input type="number" id="max_price" placeholder="До" class="w-24 px-3 py-2 bg-tg-bg text-tg-text border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-tg-link">
                         </div>
                     </div>
                 </div>
 
                 <div class="flex space-x-3">
-                    <button type="reset" class="flex-1 px-4 py-3 bg-tg-secondary text-tg-text font-medium rounded-xl btn-3d hover:bg-gray-100 active:bg-gray-200">
-                        Reset
+                    <button type="reset" class="flex-1 px-4 py-3 bg-tg-secondary text-tg-text font-medium rounded-xl btn-3d hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors">
+                        Сбросить
                     </button>
-                    <button type="submit" id="search-button" class="flex-1 px-4 py-3 bg-tg-button text-tg-buttonText font-medium rounded-xl btn-3d hover:opacity-90 active:opacity-100">
-                        Search <i class="fas fa-search ml-2"></i>
+                    <button type="submit" id="search-button" class="flex-1 px-4 py-3 bg-tg-button text-tg-buttonText font-medium rounded-xl btn-3d hover:opacity-90 active:opacity-100 transition-opacity">
+                        Искать <i class="fas fa-search ml-2"></i>
                     </button>
                 </div>
             </form>
 
             <div id="results" class="grid grid-cols-1 gap-4">
-                <!-- Example ad card -->
-                <div class="ad-card bg-white rounded-2xl overflow-hidden shadow-md">
-                    <div class="relative">
-                        <img src="https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80" alt="Apartment" class="w-full h-48 object-cover">
-                        <div class="absolute top-2 right-2 bg-tg-button text-white px-3 py-1 rounded-full text-xs font-bold">
-                            New
-                        </div>
-                    </div>
-                    <div class="p-4">
-                        <div class="flex justify-between items-start mb-2">
-                            <h3 class="text-lg font-bold text-tg-text">2-room apartment</h3>
-                            <div class="text-xl font-bold text-tg-link">$520</div>
-                        </div>
-                        <div class="flex items-center text-sm text-tg-hint mb-3">
-                            <i class="fas fa-map-marker-alt mr-2 text-tg-hint"></i>
-                            <span>Minsk, Nezavisimosti ave. 45</span>
-                        </div>
-                        <p class="text-tg-text text-sm mb-4 line-clamp-2">
-                            Cozy 2-room apartment in the city center with great view. Fully furnished...
-                        </p>
-                        <div class="flex justify-between items-center">
-                            <div class="flex space-x-3">
-                                <span class="text-xs bg-tg-secondary px-2 py-1 rounded-full"><i class="fas fa-expand mr-1"></i> 64m²</span>
-                                <span class="text-xs bg-tg-secondary px-2 py-1 rounded-full"><i class="fas fa-bed mr-1"></i> 2</span>
-                            </div>
-                            <button class="text-sm font-medium text-tg-link flex items-center">
-                                View <i class="fas fa-arrow-right ml-1"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <!-- Ad cards will be loaded here -->
             </div>
             
-            <div id="loader" class="text-center py-6" style="display: none;">
-                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-tg-button"></div>
+            <div id="loader" class="flex flex-col items-center justify-center py-8 hidden">
+                <div class="sk-folding-cube">
+                    <div class="sk-cube1 sk-cube"></div>
+                    <div class="sk-cube2 sk-cube"></div>
+                    <div class="sk-cube4 sk-cube"></div>
+                    <div class="sk-cube3 sk-cube"></div>
+                </div>
+                <p class="text-tg-hint">Загружаем объявления...</p>
+            </div>
+
+            <div id="no-results" class="text-center py-10 hidden">
+                <i class="far fa-folder-open text-4xl text-tg-hint mb-3"></i>
+                <h3 class="text-lg font-medium text-tg-text mb-1">Нет подходящих квартир</h3>
+                <p class="text-sm text-tg-hint">Попробуйте изменить параметры поиска</p>
+                <button class="mt-4 px-4 py-2 text-sm font-medium text-tg-link rounded-lg hover:bg-tg-secondary transition-colors" id="reset-filters-btn">
+                    Сбросить фильтры
+                </button>
+            </div>
+
+            <div id="load-more" class="flex justify-center my-6 hidden">
+                <button class="px-6 py-3 bg-tg-secondary text-tg-text font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" id="load-more-btn">
+                    Показать ещё
+                </button>
             </div>
         </div>
 
-        <!-- Other tabs content -->
-        <div id="favorites-content" class="tab-content hidden">
-            <div class="text-center py-10">
+        <!-- Favorites tab content -->
+        <div id="favorites-content" class="hidden">
+            <div id="favorites-list" class="grid grid-cols-1 gap-4">
+                <!-- Saved apartments will be loaded here -->
+            </div>
+            
+            <div id="favorites-empty" class="text-center py-10">
                 <i class="far fa-heart text-4xl text-tg-hint mb-3"></i>
-                <h3 class="text-lg font-medium text-tg-text mb-1">No saved apartments</h3>
-                <p class="text-sm text-tg-hint">Save apartments by clicking the heart icon</p>
-            </div>
-        </div>
-
-        <div id="history-content" class="tab-content hidden">
-            <div class="text-center py-10">
-                <i class="far fa-clock text-4xl text-tg-hint mb-3"></i>
-                <h3 class="text-lg font-medium text-tg-text mb-1">No history yet</h3>
-                <p class="text-sm text-tg-hint">Your viewed apartments will appear here</p>
+                <h3 class="text-lg font-medium text-tg-text mb-1">Нет избранных квартир</h3>
+                <p class="text-sm text-tg-hint">Добавляйте объявления в избранное, нажав на сердечко</p>
+                <button class="mt-4 px-4 py-2 text-sm font-medium text-tg-link rounded-lg hover:bg-tg-secondary transition-colors" id="browse-apartments-btn">
+                    Найти квартиры
+                </button>
             </div>
         </div>
     </main>
 
     <!-- Floating action button -->
-    <button class="fab bg-tg-button text-white" id="fab-button">
-        <i class="fas fa-plus"></i>
+    <button class="fab bg-tg-button text-white hover:opacity-90 active:opacity-100 transition-opacity" id="fab-button">
+        <i class="fas fa-sync-alt"></i>
     </button>
 
     <!-- Bottom navigation -->
-    <nav class="bottom-nav fixed bottom-0 w-full bg-tg-bg border-t border-opacity-10 border-gray-400 z-40">
+    <nav class="bottom-nav fixed bottom-0 w-full bg-tg-bg border-t border-opacity-10 border-gray-400 dark:border-gray-700 z-40">
         <div class="flex justify-around items-center py-3">
-            <button class="flex flex-col items-center justify-center p-2 text-tg-button">
+            <button class="nav-btn flex flex-col items-center justify-center p-2 text-tg-button" data-page="search">
                 <i class="fas fa-home text-xl"></i>
-                <span class="text-xs mt-1">Home</span>
+                <span class="text-xs mt-1">Поиск</span>
             </button>
-            <button class="flex flex-col items-center justify-center p-2 text-tg-hint">
-                <i class="far fa-compass text-xl"></i>
-                <span class="text-xs mt-1">Explore</span>
-            </button>
-            <button class="flex flex-col items-center justify-center p-2 text-tg-hint">
-                <i class="far fa-bell text-xl"></i>
-                <span class="text-xs mt-1">Alerts</span>
-            </button>
-            <button class="flex flex-col items-center justify-center p-2 text-tg-hint">
-                <i class="far fa-user text-xl"></i>
-                <span class="text-xs mt-1">Profile</span>
+            <button class="nav-btn flex flex-col items-center justify-center p-2 text-tg-hint" data-page="favorites">
+                <i class="far fa-heart text-xl"></i>
+                <span class="text-xs mt-1">Избранное</span>
             </button>
         </div>
     </nav>
 
     <script>
+        // Telegram WebApp initialization
         const tg = window.Telegram.WebApp;
         let activeTab = 'search';
+        let savedAds = JSON.parse(localStorage.getItem('savedAds')) || [];
+        let currentPage = 1;
+        let currentFilters = {};
+        let isLoading = false;
+        let hasMoreResults = true;
+        let isDarkMode = tg.colorScheme === 'dark';
         
-        // Initialize Telegram app
-        tg.ready();
-        tg.expand();
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            initApp();
+            setupEventListeners();
+            
+            // Load initial ads
+            loadAds();
+        });
         
-        // Apply Telegram theme
+        function initApp() {
+            // Apply Telegram theme
+            applyTheme();
+            tg.expand();
+            tg.ready();
+            
+            // Set initial dark mode
+            document.body.classList.toggle('dark', isDarkMode);
+            
+            // Set price range values
+            document.getElementById('price-range').value = 5000;
+            document.getElementById('min_price').value = '';
+            document.getElementById('max_price').value = '';
+            
+            // Theme change event
+            tg.onEvent('themeChanged', () => {
+                isDarkMode = tg.colorScheme === 'dark';
+                document.body.classList.toggle('dark', isDarkMode);
+                applyTheme();
+            });
+        }
+        
         function applyTheme() {
             const theme = tg.themeParams;
             const root = document.documentElement;
@@ -345,84 +454,452 @@
                 const cssVar = `--tg-theme-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
                 root.style.setProperty(cssVar, theme[key]);
             }
-            
-            document.body.style.colorScheme = tg.colorScheme;
         }
         
-        applyTheme();
-        tg.onEvent('themeChanged', applyTheme);
-        
-        // Dropdown menu
-        const menuButton = document.getElementById('menu-button');
-        const dropdownMenu = document.getElementById('dropdown-menu');
-        
-        menuButton.addEventListener('click', () => {
-            dropdownMenu.classList.toggle('active');
-        });
-        
-        // Close dropdown when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#menu-button') && !e.target.closest('#dropdown-menu')) {
-                dropdownMenu.classList.remove('active');
-            }
-        });
-        
-        // Tab switching
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.addEventListener('click', () => {
-                const tabId = button.dataset.tab;
-                
-                // Update active tab button
-                document.querySelectorAll('.tab-button').forEach(btn => {
-                    btn.classList.remove('active');
-                    btn.classList.add('text-tg-hint');
-                });
-                
-                button.classList.add('active');
-                button.classList.remove('text-tg-hint');
-                
-                // Update active tab content
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.add('hidden');
-                    content.classList.remove('active');
-                });
-                
-                document.getElementById(`${tabId}-content`).classList.remove('hidden');
-                document.getElementById(`${tabId}-content`).classList.add('active');
-                
-                // Haptic feedback
+        function setupEventListeners() {
+            // Menu dropdown
+            document.getElementById('menu-button').addEventListener('click', () => {
+                document.getElementById('dropdown-menu').classList.toggle('hidden');
                 triggerHapticFeedback('light');
+            });
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#menu-button') && !e.target.closest('#dropdown-menu')) {
+                    document.getElementById('dropdown-menu').classList.add('hidden');
+                }
+            });
+            
+            // Form submission
+            document.getElementById('filter-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                currentPage = 1;
+                hasMoreResults = true;
+                saveFilters();
+                loadAds();
+            });
+            
+            document.getElementById('filter-form').addEventListener('reset', () => {
+                resetFilters();
+            });
+            
+            // Bottom navigation
+            document.querySelectorAll('.nav-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const page = button.dataset.page;
+                    navigateTo(page);
+                });
+            });
+            
+            // Dropdown menu buttons
+            document.getElementById('saved-search-btn').addEventListener('click', (e) => {
+                e.preventDefault();
+                document.getElementById('dropdown-menu').classList.add('hidden');
+                navigateTo('favorites');
+            });
+            
+            document.getElementById('help-btn').addEventListener('click', (e) => {
+                e.preventDefault();
+                document.getElementById('dropdown-menu').classList.add('hidden');
+                showHelp();
+            });
+            
+            // Other buttons
+            document.getElementById('reset-filters-btn').addEventListener('click', resetFilters);
+            document.getElementById('browse-apartments-btn').addEventListener('click', () => navigateTo('search'));
+            document.getElementById('load-more-btn').addEventListener('click', loadMoreAds);
+            document.getElementById('fab-button').addEventListener('click', refreshAds);
+            
+            // Price range inputs
+            document.getElementById('price-range').addEventListener('input', updatePriceInputs);
+            document.getElementById('min_price').addEventListener('input', updatePriceSlider);
+            document.getElementById('max_price').addEventListener('input', updatePriceSlider);
+        }
+        
+        function saveFilters() {
+            currentFilters = {
+                city: document.getElementById('city').value,
+                rooms: document.getElementById('rooms').value,
+                min_price: document.getElementById('min_price').value,
+                max_price: document.getElementById('max_price').value
+            };
+        }
+        
+        function loadAds() {
+            if (isLoading) return;
+            
+            const city = document.getElementById('city').value;
+            const rooms = document.getElementById('rooms').value;
+            const minPrice = document.getElementById('min_price').value;
+            const maxPrice = document.getElementById('max_price').value;
+            
+            // Show loading state
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('no-results').classList.add('hidden');
+            document.getElementById('load-more').classList.add('hidden');
+            
+            isLoading = true;
+            
+            // Simulate API call to your Flask backend
+            const apiUrl = buildApiUrl(city, minPrice, maxPrice, rooms, 1);
+            
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('loader').classList.add('hidden');
+                    isLoading = false;
+                    
+                    if (data.ads && data.ads.length > 0) {
+                        renderAds(data.ads);
+                        hasMoreResults = data.has_more;
+                        
+                        if (hasMoreResults) {
+                            document.getElementById('load-more').classList.remove('hidden');
+                        }
+                    } else {
+                        document.getElementById('no-results').classList.remove('hidden');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading ads:', error);
+                    document.getElementById('loader').classList.add('hidden');
+                    isLoading = false;
+                    document.getElementById('no-results').classList.remove('hidden');
+                    tg.showAlert('Ошибка при загрузке объявлений. Попробуйте позже.');
+                });
+        }
+        
+        function loadMoreAds() {
+            if (isLoading || !hasMoreResults) return;
+            
+            currentPage++;
+            const city = document.getElementById('city').value;
+            const rooms = document.getElementById('rooms').value;
+            const minPrice = document.getElementById('min_price').value;
+            const maxPrice = document.getElementById('max_price').value;
+            
+            document.getElementById('load-more').classList.add('hidden');
+            
+            // Show loading state in the load more button
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Загрузка...';
+            
+            isLoading = true;
+            
+            // Simulate API call to your Flask backend with pagination
+            const apiUrl = buildApiUrl(city, minPrice, maxPrice, rooms, currentPage);
+            
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    isLoading = false;
+                    loadMoreBtn.innerHTML = 'Показать ещё';
+                    
+                    if (data.ads && data.ads.length > 0) {
+                        renderAds(data.ads, true);
+                        hasMoreResults = data.has_more;
+                        
+                        if (hasMoreResults) {
+                            document.getElementById('load-more').classList.remove('hidden');
+                        }
+                        
+                        // Scroll to show new items
+                        setTimeout(() => {
+                            const resultsContainer = document.getElementById('results');
+                            const lastCard = resultsContainer.lastChild;
+                            lastCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }, 100);
+                    } else {
+                        hasMoreResults = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading more ads:', error);
+                    isLoading = false;
+                    loadMoreBtn.innerHTML = 'Показать ещё';
+                    document.getElementById('load-more').classList.remove('hidden');
+                    tg.showAlert('Ошибка при загрузке дополнительных объявлений.');
+                });
+        }
+        
+        function buildApiUrl(city, minPrice, maxPrice, rooms, page) {
+            let url = `/api/ads?source=Kufar&city=${city}`;
+            
+            if (minPrice) url += `&min_price=${minPrice}`;
+            if (maxPrice) url += `&max_price=${maxPrice}`;
+            if (rooms && rooms !== 'any') url += `&rooms=${rooms}`;
+            
+            // Simulate pagination (in a real app, you would use KUFAR_LIMIT from your backend)
+            const limit = 5;
+            const offset = (page - 1) * limit;
+            url += `&kufar_offset=${offset}`;
+            
+            return url;
+        }
+        
+        function refreshAds() {
+            triggerHapticFeedback('light');
+            currentPage = 1;
+            loadAds();
+        }
+        
+        function renderAds(ads, append = false) {
+            const resultsContainer = document.getElementById('results');
+            
+            if (!append) {
+                resultsContainer.innerHTML = '';
+            }
+            
+            if (ads.length === 0 && !append) {
+                document.getElementById('no-results').classList.remove('hidden');
+                return;
+            }
+            
+            ads.forEach(ad => {
+                const isSaved = savedAds.includes(ad.link);
                 
-                // Update active tab variable
-                activeTab = tabId;
-            });
-        });
-        
-        // 3D button effect
-        document.querySelectorAll('.btn-3d').forEach(button => {
-            button.addEventListener('mousedown', () => {
-                button.style.transform = 'translateY(4px)';
-                button.style.boxShadow = 'none';
+                const card = document.createElement('div');
+                card.className = 'ad-card bg-tg-bg rounded-2xl overflow-hidden shadow-sm relative';
+                card.innerHTML = `
+                    <div class="relative">
+                        <img src="${ad.image || 'https://via.placeholder.com/300x200?text=No+Image'}" 
+                             alt="${ad.description || 'Квартира'}" 
+                             class="w-full h-48 object-cover">
+                        <button class="absolute top-2 left-2 w-10 h-10 rounded-full bg-white bg-opacity-90 ${isSaved ? 'text-red-500' : 'text-gray-400'} flex items-center justify-center focus:outline-none save-btn" 
+                                data-link="${ad.link}">
+                            <i class="far fa-heart text-lg"></i>
+                        </button>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="text-lg font-bold text-tg-text">${getRoomsText(ad.rooms)}</h3>
+                            <div class="text-xl font-bold text-tg-link">${formatPrice(ad.price)}</div>
+                        </div>
+                        <div class="flex items-center text-sm text-tg-hint mb-3">
+                            <i class="fas fa-map-marker-alt mr-2 text-tg-hint"></i>
+                            <span>${ad.city || 'Не указано'}, ${ad.address || 'Адрес не указан'}</span>
+                        </div>
+                        <p class="text-tg-text text-sm mb-4 line-clamp-2">
+                            ${ad.description || 'Описание отсутствует'}
+                        </p>
+                        <button class="w-full px-4 py-2 bg-tg-button text-tg-buttonText font-medium rounded-lg btn-3d hover:opacity-90 active:opacity-100 transition-opacity view-btn" 
+                                data-link="${ad.link}">
+                            Подробнее
+                        </button>
+                    </div>
+                `;
+                
+                resultsContainer.appendChild(card);
             });
             
-            button.addEventListener('mouseup', () => {
-                button.style.transform = '';
-                button.style.boxShadow = '0 4px 0 rgba(0, 0, 0, 0.2)';
+            // Add event listeners to new buttons
+            document.querySelectorAll('.save-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleSaveAd(button.dataset.link, button);
+                });
             });
             
-            button.addEventListener('mouseleave', () => {
-                button.style.transform = '';
-                button.style.boxShadow = '0 4px 0 rgba(0, 0, 0, 0.2)';
+            document.querySelectorAll('.view-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    viewAdDetails(button.dataset.link);
+                });
             });
-        });
+        }
         
-        // FAB button
-        document.getElementById('fab-button').addEventListener('click', () => {
-            triggerHapticFeedback('medium');
-            alert('New apartment posting feature coming soon!');
-        });
+        function renderSavedAds() {
+            const container = document.getElementById('favorites-list');
+            const emptyState = document.getElementById('favorites-empty');
+            
+            if (savedAds.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            container.innerHTML = '';
+            emptyState.classList.add('hidden');
+            
+            // In a real app, you would fetch details for all saved ads
+            savedAds.forEach(link => {
+                const card = document.createElement('div');
+                card.className = 'ad-card bg-tg-bg rounded-2xl overflow-hidden shadow-sm relative';
+                card.innerHTML = `
+                    <div class="relative">
+                        <div class="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-400">
+                            <i class="fas fa-image text-4xl"></i>
+                        </div>
+                        <button class="absolute top-2 left-2 w-10 h-10 rounded-full bg-white bg-opacity-90 text-red-500 flex items-center justify-center focus:outline-none save-btn" 
+                                data-link="${link}">
+                            <i class="far fa-heart text-lg"></i>
+                        </button>
+                    </div>
+                    <div class="p-4">
+                        <p class="text-tg-text mb-4 line-clamp-2">
+                            Сохранённое объявление
+                        </p>
+                        <button class="w-full px-4 py-2 bg-tg-button text-tg-buttonText font-medium rounded-lg btn-3d hover:opacity-90 active:opacity-100 transition-opacity view-btn" 
+                                data-link="${link}">
+                            Перейти на Kufar
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+            
+            // Add event listeners
+            document.querySelectorAll('.save-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleSaveAd(button.dataset.link, button);
+                });
+            });
+            
+            document.querySelectorAll('.view-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    tg.openLink(button.dataset.link);
+                });
+            });
+        }
         
-        // Haptic feedback
+        function toggleSaveAd(link, button) {
+            triggerHapticFeedback('light');
+            
+            const index = savedAds.indexOf(link);
+            
+            if (index === -1) {
+                // Add to saved
+                savedAds.unshift(link);
+                tg.showPopup({
+                    title: 'Добавлено',
+                    message: 'Объявление добавлено в избранное',
+                    buttons: [{ type: 'ok' }]
+                });
+                
+                if (button) {
+                    button.innerHTML = '<i class="far fa-heart text-lg"></i>';
+                    button.classList.remove('text-gray-400');
+                    button.classList.add('text-red-500');
+                }
+            } else {
+                // Remove from saved
+                savedAds.splice(index, 1);
+                tg.showPopup({
+                    title: 'Удалено',
+                    message: 'Объявление удалено из избранного',
+                    buttons: [{ type: 'ok' }]
+                });
+                
+                if (button) {
+                    button.innerHTML = '<i class="far fa-heart text-lg"></i>';
+                    button.classList.remove('text-red-500');
+                    button.classList.add('text-gray-400');
+                }
+                
+                // If we're on favorites tab, refresh the list
+                if (activeTab === 'favorites') {
+                    renderSavedAds();
+                }
+            }
+            
+            localStorage.setItem('savedAds', JSON.stringify(savedAds));
+        }
+        
+        function viewAdDetails(link) {
+            triggerHapticFeedback('light');
+            tg.openLink(link);
+        }
+        
+        function navigateTo(page) {
+            triggerHapticFeedback('light');
+            activeTab = page;
+            
+            // Update active nav button
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-tg-button');
+                btn.classList.add('text-tg-hint');
+            });
+            
+            const activeButton = document.querySelector(`.nav-btn[data-page="${page}"]`);
+            activeButton.classList.add('text-tg-button');
+            activeButton.classList.remove('text-tg-hint');
+            
+            // Show/hide content
+            document.getElementById('search-content').classList.toggle('hidden', page !== 'search');
+            document.getElementById('favorites-content').classList.toggle('hidden', page !== 'favorites');
+            
+            // Load content if needed
+            if (page === 'favorites') {
+                renderSavedAds();
+            } else if (page === 'search' && document.getElementById('results').children.length === 0) {
+                loadAds();
+            }
+        }
+        
+        function resetFilters() {
+            triggerHapticFeedback('light');
+            
+            document.getElementById('city').value = 'minsk';
+            document.getElementById('rooms').value = 'any';
+            document.getElementById('price-range').value = 5000;
+            document.getElementById('min_price').value = '';
+            document.getElementById('max_price').value = '';
+            
+            currentPage = 1;
+            hasMoreResults = true;
+            saveFilters();
+            loadAds();
+        }
+        
+        function showHelp() {
+            triggerHapticFeedback('light');
+            
+            tg.showPopup({
+                title: 'Помощь',
+                message: 'Это приложение показывает объявления с Kufar.by. Используйте фильтры для поиска подходящих квартир. Нажмите на сердечко, чтобы сохранить объявление в избранное.',
+                buttons: [
+                    {
+                        type: 'default',
+                        text: 'Перейти на Kufar',
+                        id: 'website'
+                    },
+                    {
+                        type: 'close'
+                    }
+                ]
+            }, (buttonId) => {
+                if (buttonId === 'website') {
+                    tg.openLink('https://re.kufar.by');
+                }
+            });
+        }
+        
+        function updatePriceInputs() {
+            const slider = document.getElementById('price-range');
+            const minInput = document.getElementById('min_price');
+            
+            minInput.value = slider.value;
+        }
+        
+        function updatePriceSlider() {
+            const slider = document.getElementById('price-range');
+            const minInput = document.getElementById('min_price');
+            const maxInput = document.getElementById('max_price');
+            
+            if (minInput.value) {
+                slider.value = Math.min(parseInt(minInput.value), 10000);
+            }
+            
+            // Make sure min <= max
+            if (maxInput.value && minInput.value && parseInt(maxInput.value) < parseInt(minInput.value)) {
+                maxInput.value = minInput.value;
+            }
+        }
+        
         function triggerHapticFeedback(style = 'light') {
             if (tg && tg.HapticFeedback) {
                 try {
@@ -440,56 +917,19 @@
             }
         }
         
-        // Form submission (mock)
-        document.getElementById('filter-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            triggerHapticFeedback('medium');
-            
-            document.getElementById('results').innerHTML = '';
-            document.getElementById('loader').style.display = 'block';
-            
-            // Simulate loading
-            setTimeout(() => {
-                document.getElementById('loader').style.display = 'none';
-                
-                // Add mock results
-                for (let i = 0; i < 3; i++) {
-                    const adCard = document.createElement('div');
-                    adCard.className = 'ad-card bg-white rounded-2xl overflow-hidden shadow-md';
-                    adCard.innerHTML = `
-                        <div class="relative">
-                            <img src="https://source.unsplash.com/random/500x300/?apartment,${i}" alt="Apartment" class="w-full h-48 object-cover">
-                            <div class="absolute top-2 right-2 bg-tg-button text-white px-3 py-1 rounded-full text-xs font-bold">
-                                New
-                            </div>
-                        </div>
-                        <div class="p-4">
-                            <div class="flex justify-between items-start mb-2">
-                                <h3 class="text-lg font-bold text-tg-text">${['1', '2', '3'][i]}-room apartment</h3>
-                                <div class="text-xl font-bold text-tg-link">$${['450', '580', '690'][i]}</div>
-                            </div>
-                            <div class="flex items-center text-sm text-tg-hint mb-3">
-                                <i class="fas fa-map-marker-alt mr-2 text-tg-hint"></i>
-                                <span>Minsk, ${['Pushkin st. 12', 'Lenina ave. 34', 'Kolas sq. 5'][i]}</span>
-                            </div>
-                            <p class="text-tg-text text-sm mb-4 line-clamp-2">
-                                ${['Cozy apartment in the city center with great view', 'Modern apartment near subway station', 'Spacious apartment with balcony'][i]}
-                            </p>
-                            <div class="flex justify-between items-center">
-                                <div class="flex space-x-3">
-                                    <span class="text-xs bg-tg-secondary px-2 py-1 rounded-full"><i class="fas fa-expand mr-1"></i> ${['48', '64', '72'][i]}m²</span>
-                                    <span class="text-xs bg-tg-secondary px-2 py-1 rounded-full"><i class="fas fa-bed mr-1"></i> ${['1', '2', '3'][i]}</span>
-                                </div>
-                                <button class="text-sm font-medium text-tg-link flex items-center">
-                                    View <i class="fas fa-arrow-right ml-1"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    document.getElementById('results').appendChild(adCard);
-                }
-            }, 1500);
-        });
+        function formatPrice(price) {
+            if (!price) return 'Цена не указана';
+            return `${price.toLocaleString().replace(/,/g, ' ')} BYN`;
+        }
+        
+        function getRoomsText(rooms) {
+            if (!rooms) return 'Квартира';
+            if (rooms === 1) return '1-комнатная квартира';
+            if (rooms === 2) return '2-комнатная квартира';
+            if (rooms === 3) return '3-комнатная квартира';
+            if (rooms >= 4) return '4+-комнатная квартира';
+            return `${rooms}-комнатная квартира`;
+        }
     </script>
 </body>
 </html>
