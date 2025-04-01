@@ -351,7 +351,7 @@ if tg_bot_initialized and TELEGRAM_TOKEN:
 
 async def main():
     scheduler = AsyncIOScheduler(timezone="Europe/Minsk")
-    scheduler.add_job(run_parser, 'interval', hours=4, next_run_time=datetime.now())
+    scheduler.add_job(run_parser, 'interval', hours=0.05, next_run_time=datetime.now())
     scheduler.start()
     logger.info("Планировщик задач запущен.")
 
