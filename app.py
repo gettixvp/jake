@@ -35,7 +35,7 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     logger.error("Не установлена переменная окружения DATABASE_URL! Свяжите PostgreSQL сервис с этим Web Service на Render.")
     # Можно установить локальный URL для тестов, если нужно
-    # DATABASE_URL = "postgresql://user:password@host:port/dbname"
+    # DATABASE_URL = "postgresql://postgresql_6nv7_user:EQCCcg1l73t8S2g9sfF2LPVx6aA5yZts@dpg-cvlq2pggjchc738o29r0-a.frankfurt-postgres.render.com/postgresql_6nv7"
 
 KUFAR_LIMIT = 2
 # ONLINER_LIMIT = 2
