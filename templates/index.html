@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поиск Квартир</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* Стили для адаптации к теме Telegram */
+        :root {
+            --tg-theme-bg-color: #ffffff; /* Цвет фона по умолчанию */
+            --tg-theme-text-color: #000000; /* Цвет текста по умолчанию */
+            --tg-theme-hint-color: #999999; /* Цвет подсказок по умолчанию */
+            --tg-theme-link-color: #2481cc; /* Цвет ссылок по умолчанию */
+            --tg-theme-button-color: #5288c1; /* Цвет кнопок по умолчанию */
+            --tg-theme-button-text-color: #ffffff; /* Цвет текста кнопок по умолчанию */
+            --tg-theme-secondary-bg-color: #f1f1f1; /* Дополнительный цвет фона */
+        }
+
+        body {
+            background-color: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 15px;
+            box-sizing: border-box;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Стили для инпутов, кнопок и других элементов */
+        input[type="text"], input[type="number"], select {
+            background-color: var(--tg-theme-secondary-bg-color);
+            color: var(--tg-theme-text-color);
+            border: 1px solid var(--tg-theme-hint-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            width: 100%;
+            margin-bottom: 10px;
+            box-sizing: border-box; /* Важно для padding */
+        }
+        input:focus, select:focus {
+             border-color: var(--tg-theme-button-color);
+             outline: none;
+        }
+
+        button {
+            background-color: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s, opacity 0.2s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+             background-color: var(--tg-theme-hint-color);
+             cursor: not-allowed;
+             opacity: 0.7;
+        }
+
+        a {
+            color: var(--tg-theme-link-color);
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Карточка объявления */
+        .ad-card {
+            background-color: var(--tg-theme-secondary-bg-color);
+            border-radius: 12px;
+            margin-bottom: 15px;
+            padding: 15px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+         .ad-card:hover {
+             /* transform: translateY(-2px); */ /* Можно добавить небольшой эффект при наведении */
+         }
+
+        .ad-card img {
+            width: 100%;
+            height: 180px; /* Фиксированная высота для единообразия */
+            object-fit: cover; /* Масштабирование с сохранением пропорций и обрезкой */
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background-color: #e0e0e0; /* Цвет фона для незагруженных изображений */
+        }
+
+        .ad-price {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: var(--tg-theme-text-color);
+            margin-bottom: 5px;
+        }
+
+        .ad-details {
+            font-size: 0.9em;
+            color: var(--tg-theme-hint-color);
+            margin-bottom: 8px;
+        }
+         .ad-details span { margin-right: 10px; } /* Отступы между деталями */
+
+        .ad-description {
+             font-size: 0.95em;
+             color: var(--tg-theme-text-color);
+             margin-bottom: 10px;
+             line-height: 1.4;
+         }
+
+         .ad-link-button {
+             display: inline-block; /* Чтобы кнопка не растягивалась на всю ширину */
+             background-color: var(--tg-theme-button-color);
+             color: var(--tg-theme-button-text-color);
+             padding: 8px 15px;
+             border-radius: 6px;
+             font-size: 0.9em;
+             text-align: center;
+             margin-top: 5px;
+         }
+         .ad-link-button:hover {
+             text-decoration: none;
+             opacity: 0.9;
+         }
+
+        /* Стили для вкладок */
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--tg-theme-hint-color);
+        }
+        .tab-button {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            background: none; /* Убираем фон кнопки по умолчанию */
+            color: var(--tg-theme-hint-color); /* Неактивная вкладка */
+            border: none;
+            border-bottom: 3px solid transparent; /* Место для активного индикатора */
+            margin-bottom: -1px; /* Компенсируем border-bottom контейнера */
+            font-weight: 500;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .tab-button.active {
+            color: var(--tg-theme-button-color); /* Активная вкладка */
+            border-bottom-color: var(--tg-theme-button-color);
+            font-weight: 600;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Индикатор загрузки */
+        .loader {
+            text-align: center;
+            padding: 20px;
+            color: var(--tg-theme-hint-color);
+        }
+
+        /* Анимация вибрации (чисто визуальная) */
+        @keyframes vibrate {
+            0% { transform: translate(0); }
+            20% { transform: translate(-1px, 1px); }
+            40% { transform: translate(-1px, -1px); }
+            60% { transform: translate(1px, 1px); }
+            80% { transform: translate(1px, -1px); }
+            100% { transform: translate(0); }
+        }
+        .vibrating {
+            animation: vibrate 0.2s linear;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="tabs">
+        <button class="tab-button active" onclick="switchTab('search')">Поиск</button>
+        <button class="tab-button" onclick="switchTab('new')">Новые объявления</button>
+        </div>
+
+    <div id="search-content" class="tab-content active">
+        <form id="filter-form" class="mb-4">
+            <div class="grid grid-cols-2 gap-4 mb-2">
+                <div>
+                    <label for="city" class="block text-sm font-medium mb-1">Город</label>
+                    <select id="city" name="city" class="w-full">
+                        <option value="Любой">Любой</option>
+                        <option value="minsk" selected>Минск</option>
+                        <option value="vitebsk">Витебск</option>
+                        <option value="gomel">Гомель</option>
+                        <option value="brest">Брест</option>
+                        <option value="grodno">Гродно</option>
+                        <option value="mogilev">Могилев</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="rooms" class="block text-sm font-medium mb-1">Комнаты</label>
+                    <select id="rooms" name="rooms" class="w-full">
+                        <option value="">Любое</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4+">4+</option>
+                    </select>
+                </div>
+            </div>
+             <div class="grid grid-cols-2 gap-4">
+                 <div>
+                    <label for="min_price" class="block text-sm font-medium mb-1">Цена от ($)</label>
+                    <input type="number" id="min_price" name="min_price" placeholder="Мин. цена" class="w-full">
+                 </div>
+                 <div>
+                     <label for="max_price" class="block text-sm font-medium mb-1">Цена до ($)</label>
+                     <input type="number" id="max_price" name="max_price" placeholder="Макс. цена" class="w-full">
+                 </div>
+             </div>
+
+            <button type="submit" id="search-button">Найти</button>
+        </form>
+
+        <div id="results" class="mt-4">
+            </div>
+
+         <div id="loader" class="loader" style="display: none;">Загрузка...</div>
+
+        <button id="show-more-button" style="display: none;" class="mt-4">Показать еще</button>
+         <p id="no-more-results" style="display: none;" class="text-center text-sm mt-4 text-[var(--tg-theme-hint-color)]">Больше объявлений не найдено.</p>
+    </div>
+
+    <div id="new-content" class="tab-content">
+        <p class="text-center text-[var(--tg-theme-hint-color)]">Здесь будут отображаться последние добавленные объявления (функционал в разработке).</p>
+        </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        let kufarOffset = 0;
+        // let onlinerOffset = 0; // Для Onliner
+        let currentFilters = {};
+        let isLoading = false;
+        let hasMore = true;
+
+        const resultsContainer = document.getElementById('results');
+        const filterForm = document.getElementById('filter-form');
+        const searchButton = document.getElementById('search-button');
+        const showMoreButton = document.getElementById('show-more-button');
+        const loader = document.getElementById('loader');
+        const noMoreResults = document.getElementById('no-more-results');
+        const tabs = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        // --- Инициализация приложения ---
+        tg.ready();
+        tg.expand(); // Разворачиваем на весь экран
+
+        // Применяем тему Telegram
+        function applyTheme() {
+             const theme = tg.themeParams;
+             const root = document.documentElement;
+             for (const key in theme) {
+                 // Преобразуем camelCase в kebab-case для CSS переменных
+                 const cssVar = `--tg-theme-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+                 root.style.setProperty(cssVar, theme[key]);
+             }
+             // Дополнительно устанавливаем цветовую схему для Tailwind и др.
+             document.body.style.colorScheme = tg.colorScheme; // 'light' или 'dark'
+        }
+        applyTheme();
+        tg.onEvent('themeChanged', applyTheme); // Обновляем тему при изменении
+
+        // --- Переключение вкладок ---
+        function switchTab(tabId) {
+             tabs.forEach(tab => tab.classList.remove('active'));
+             tabContents.forEach(content => content.classList.remove('active'));
+
+             const activeTab = document.querySelector(`.tab-button[onclick="switchTab('${tabId}')"]`);
+             const activeContent = document.getElementById(`${tabId}-content`);
+
+             if (activeTab) activeTab.classList.add('active');
+             if (activeContent) activeContent.classList.add('active');
+
+             // Вибрация при переключении
+             triggerHapticFeedback('light');
+
+             // Сброс состояния поиска при переходе на другую вкладку
+             if (tabId !== 'search') {
+                 resultsContainer.innerHTML = '';
+                 showMoreButton.style.display = 'none';
+                 noMoreResults.style.display = 'none';
+             } else {
+                 // Если возвращаемся на поиск и есть результаты, показываем кнопку "еще" если нужно
+                 if (resultsContainer.children.length > 0 && hasMore) {
+                    showMoreButton.style.display = 'block';
+                 }
+             }
+             // TODO: Добавить логику загрузки для вкладки "Новые" если нужно
+             if (tabId === 'new') {
+                 // loadLatestAds(); // Пример вызова функции загрузки новых
+             }
+        }
+
+        // --- Функции для работы с API ---
+        async function fetchAds(filters, isLoadMore = false) {
+            if (isLoading) return; // Предотвращаем двойной запрос
+            isLoading = true;
+            loader.style.display = 'block'; // Показываем индикатор загрузки
+            if (!isLoadMore) {
+                resultsContainer.innerHTML = ''; // Очищаем результаты для нового поиска
+                showMoreButton.style.display = 'none';
+                noMoreResults.style.display = 'none';
+            } else {
+                 showMoreButton.disabled = true; // Блокируем кнопку "Показать еще" во время загрузки
+            }
+            searchButton.disabled = true; // Блокируем кнопку поиска
+
+             triggerHapticFeedback('medium'); // Вибрация при начале загрузки
+
+            // Формируем параметры запроса
+            const params = new URLSearchParams();
+            for (const key in filters) {
+                if (filters[key]) { // Добавляем только непустые значения
+                    params.append(key, filters[key]);
+                }
+            }
+            // Добавляем смещения
+            params.append('kufar_offset', kufarOffset);
+            // params.append('onliner_offset', onlinerOffset);
+
+            const url = `/api/ads?${params.toString()}`; // ОТНОСИТЕЛЬНЫЙ URL
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+
+                displayResults(data.ads); // Отображаем полученные объявления
+
+                // Обновляем смещения и флаг hasMore на основе ответа API
+                kufarOffset = data.next_kufar_offset;
+                // onlinerOffset = data.next_onliner_offset;
+                hasMore = data.has_more;
+
+                // Управляем кнопкой "Показать еще"
+                if (hasMore) {
+                    showMoreButton.style.display = 'block';
+                    noMoreResults.style.display = 'none';
+                } else {
+                    showMoreButton.style.display = 'none';
+                     // Показываем сообщение "больше нет" только если были результаты
+                    if (resultsContainer.children.length > 0) {
+                        noMoreResults.style.display = 'block';
+                    } else if (!isLoadMore) {
+                         // Если это был первый поиск и ничего не найдено
+                         resultsContainer.innerHTML = '<p class="text-center text-[var(--tg-theme-hint-color)]">По вашему запросу ничего не найдено. Попробуйте изменить фильтры.</p>';
+                    }
+                }
+
+            } catch (error) {
+                console.error('Fetch error:', error);
+                resultsContainer.innerHTML = `<p class="text-center text-red-500">Ошибка загрузки данных: ${error.message}. Попробуйте позже.</p>`;
+                showMoreButton.style.display = 'none'; // Скрываем кнопку при ошибке
+                noMoreResults.style.display = 'none';
+            } finally {
+                isLoading = false;
+                loader.style.display = 'none'; // Скрываем индикатор загрузки
+                showMoreButton.disabled = false; // Разблокируем кнопку "Показать еще"
+                searchButton.disabled = false; // Разблокируем кнопку поиска
+            }
+        }
+
+        // --- Отображение результатов ---
+        function displayResults(ads) {
+            if (!ads || ads.length === 0) {
+                 if(resultsContainer.children.length === 0) { // Показываем сообщение только если вообще не было результатов
+                     resultsContainer.innerHTML = '<p class="text-center text-[var(--tg-theme-hint-color)]">Объявлений не найдено.</p>';
+                 }
+                 return;
+            }
+
+            const fragment = document.createDocumentFragment(); // Используем фрагмент для производительности
+            ads.forEach(ad => {
+                const card = document.createElement('div');
+                card.className = 'ad-card';
+                card.innerHTML = `
+                    ${ad.image ? `<img src="${ad.image}" alt="Фото квартиры" loading="lazy">` : '<div style="height: 180px; background-color: #eee; border-radius: 8px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; color: var(--tg-theme-hint-color);">Нет фото</div>'}
+                    ${ad.price ? `<div class="ad-price">${ad.price.toLocaleString('ru-RU')} $</div>` : ''}
+                    <div class="ad-details">
+                        ${ad.city ? `<span>${ad.city}</span>` : ''}
+                        ${ad.rooms ? `<span>${ad.rooms}-комн.</span>` : ''}
+                         ${ad.address && ad.address !== 'Не указан' ? `<span>${ad.address}</span>` : ''}
+                    </div>
+                     <p class="ad-description">${ad.description ? ad.description : ''}</p>
+                    <a href="${ad.link}" target="_blank" class="ad-link-button" onclick="triggerHapticFeedback('light')">
+                        Перейти (${ad.source})
+                    </a>
+                `;
+                fragment.appendChild(card);
+            });
+             resultsContainer.appendChild(fragment);
+        }
+
+        // --- Обработчики событий ---
+        filterForm.addEventListener('submit', (event) => {
+            event.preventDefault(); // Отменяем стандартную отправку формы
+            // Применяем визуальный эффект вибрации к кнопке
+            searchButton.classList.add('vibrating');
+            setTimeout(() => searchButton.classList.remove('vibrating'), 200);
+
+            // Сбрасываем смещения для нового поиска
+            kufarOffset = 0;
+            // onlinerOffset = 0;
+            hasMore = true; // Сбрасываем флаг hasMore
+
+            // Собираем значения фильтров
+            currentFilters = {
+                city: document.getElementById('city').value,
+                min_price: document.getElementById('min_price').value,
+                max_price: document.getElementById('max_price').value,
+                rooms: document.getElementById('rooms').value,
+            };
+            fetchAds(currentFilters, false); // Запускаем новый поиск
+        });
+
+        showMoreButton.addEventListener('click', () => {
+             triggerHapticFeedback('medium'); // Вибрация при нажатии "Показать еще"
+             // Применяем визуальный эффект вибрации к кнопке
+             showMoreButton.classList.add('vibrating');
+             setTimeout(() => showMoreButton.classList.remove('vibrating'), 200);
+             fetchAds(currentFilters, true); // Загружаем следующую порцию с текущими фильтрами
+        });
+
+        // --- Вспомогательные функции ---
+        function triggerHapticFeedback(style = 'medium') {
+            // Проверяем, доступно ли API и включены ли вибрации
+             if (tg && tg.HapticFeedback && !tg.isVersionAtLeast('6.1') && tg.platform !== 'tdesktop') {
+                 // В старых версиях или где не поддерживается - не вызываем
+                 // console.warn('Haptic feedback not supported or version too low.');
+                 return;
+             }
+             try {
+                 switch(style) {
+                     case 'light': tg.HapticFeedback.impactOccurred('light'); break;
+                     case 'medium': tg.HapticFeedback.impactOccurred('medium'); break;
+                     case 'heavy': tg.HapticFeedback.impactOccurred('heavy'); break;
+                     case 'rigid': tg.HapticFeedback.impactOccurred('rigid'); break;
+                     case 'soft': tg.HapticFeedback.impactOccurred('soft'); break;
+                     case 'error': tg.HapticFeedback.notificationOccurred('error'); break;
+                     case 'success': tg.HapticFeedback.notificationOccurred('success'); break;
+                     case 'warning': tg.HapticFeedback.notificationOccurred('warning'); break;
+                     default: tg.HapticFeedback.impactOccurred('medium');
+                 }
+             } catch (e) {
+                 console.error("Haptic feedback error:", e);
+             }
+        }
+
+        // Опционально: Настройка кнопок Назад и Главной кнопки Telegram
+        /*
+        // Пример: Показать кнопку Назад при показе результатов
+        function showResultsView() {
+             document.getElementById('filter-form').style.display = 'none';
+             document.getElementById('results-view').style.display = 'block'; // Предполагается контейнер для результатов
+             tg.BackButton.show();
+        }
+
+        // Пример: Скрыть результаты и показать фильтры при нажатии Назад
+        tg.onEvent('backButtonClicked', () => {
+             document.getElementById('results-view').style.display = 'none';
+             document.getElementById('filter-form').style.display = 'block';
+             tg.BackButton.hide();
+             triggerHapticFeedback('light');
+        });
+
+        // Пример: Использование главной кнопки для поиска
+        tg.MainButton.setText('Найти квартиры');
+        tg.MainButton.onClick(() => {
+             if (!isLoading) {
+                 tg.MainButton.showProgress();
+                 filterForm.dispatchEvent(new Event('submit')); // Вызываем отправку формы
+                 // Скрыть прогресс можно в finally блока fetchAds
+                 // tg.MainButton.hideProgress();
+             }
+        });
+        // Показать кнопку, когда форма готова
+         tg.MainButton.show();
+        */
+
+    </script>
+
+</body>
+</html>
