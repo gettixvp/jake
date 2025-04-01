@@ -350,8 +350,9 @@ if tg_bot_initialized and TELEGRAM_TOKEN:
     application.add_handler(MessageHandler(filters.ALL, webhook_handler))
 
 async def main():
+    await run_parser()  # Запуск парсинга при старте
     scheduler = AsyncIOScheduler(timezone="Europe/Minsk")
-    scheduler.add_job(run_parser, 'interval', hours=0.05, next_run_time=datetime.now())
+    scheduler.add_job(run_parser, 'interval', hours=4)
     scheduler.start()
     logger.info("Планировщик задач запущен.")
 
