@@ -3,6 +3,7 @@ import logging
 import os
 from datetime import datetime, timezone
 import random
+import time
 import psycopg2
 import psycopg2.extras
 import aiohttp
@@ -31,8 +32,7 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     logger.error("Не установлена переменная окружения DATABASE_URL! Свяжите PostgreSQL сервис с этим Web Service на Render.")
 
-KUFAR_LIMIT = 2
-
+KUFAR_LIMIT = 5  # Синхронизировано с фронтендом
 
 def get_db_connection():
     """Устанавливает соединение с PostgreSQL."""
@@ -44,7 +44,6 @@ def get_db_connection():
     except psycopg2.OperationalError as e:
         logger.error(f"Ошибка подключения к PostgreSQL: {e}", exc_info=True)
         raise
-
 
 def init_db():
     """Инициализирует БД PostgreSQL, создает таблицу, если она не существует."""
@@ -72,10 +71,6 @@ def init_db():
                 logger.info("Таблица 'ads' в PostgreSQL успешно проверена/создана.")
     except (psycopg2.Error, ValueError) as e:
         logger.error(f"Ошибка при инициализации БД PostgreSQL: {e}", exc_info=True)
-    except Exception as e:
-        logger.error(f"Непредвиденная ошибка при инициализации БД: {e}", exc_info=True)
-
-
 
 async def parse_kufar(session, city_url="https://re.kufar.by/l/minsk/kupit/kvartiru", pages=2):
     """Асинхронно парсит объявления с Kufar."""
@@ -85,6 +80,8 @@ async def parse_kufar(session, city_url="https://re.kufar.by/l/minsk/kupit/kvart
         "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
     }
     logger.info(f"Начинаем парсинг Kufar: {city_url}")
+    start_time = time.time()
+
     for page in range(1, pages + 1):
         url = f"{city_url}?cur_page={page}"
         try:
@@ -121,13 +118,14 @@ async def parse_kufar(session, city_url="https://re.kufar.by/l/minsk/kupit/kvart
                         description = description_tag.text.strip() if description_tag else "Нет описания"
 
                         rooms = None
-                        if "1-комн" in description or "однокомнатная" in description.lower():
+                        desc_lower = description.lower()
+                        if "1-комн" in desc_lower or "однокомнатная" in desc_lower or "1-к" in desc_lower:
                             rooms = 1
-                        elif "2-комн" in description or "двухкомнатная" in description.lower():
+                        elif "2-комн" in desc_lower or "двухкомнатная" in desc_lower or "2-к" in desc_lower:
                             rooms = 2
-                        elif "3-комн" in description or "трехкомнатная" in description.lower():
+                        elif "3-комн" in desc_lower or "трехкомнатная" in desc_lower or "3-к" in desc_lower:
                             rooms = 3
-                        elif "4-комн" in description or "четырехкомнатная" in description.lower():
+                        elif "4-комн" in desc_lower or "четырехкомнатная" in desc_lower or "4-к" in desc_lower:
                             rooms = 4
 
                         address = "Не указан"
@@ -136,10 +134,10 @@ async def parse_kufar(session, city_url="https://re.kufar.by/l/minsk/kupit/kvart
                         image = img_tag['data-src'] if img_tag and 'data-src' in img_tag.attrs else (
                             img_tag['src'] if img_tag and 'src' in img_tag.attrs else None)
 
-                        city = city_url.split('/')[4]
+                        city = city_url.split('/')[4].capitalize()
 
                         ad_data = {
-                            "link": link, "source": "Kufar", "city": city.capitalize(),
+                            "link": link, "source": "Kufar", "city": city,
                             "price": price, "rooms": rooms, "address": address,
                             "image": image, "description": description,
                         }
@@ -152,20 +150,21 @@ async def parse_kufar(session, city_url="https://re.kufar.by/l/minsk/kupit/kvart
                 logger.info(f"Kufar, стр. {page}: Найдено {len(ads_found)} объявлений.")
                 await asyncio.sleep(random.uniform(1, 3))
 
+                # Проверка наличия следующей страницы
+                next_page = soup.find("a", class_=lambda c: c and "next" in c)
+                if not next_page and page < pages:
+                    logger.info(f"Дальнейшие страницы отсутствуют на {page}")
+                    break
+
         except aiohttp.ClientError as e:
             logger.error(f"Ошибка сети Kufar {url}: {e}")
             break
         except asyncio.TimeoutError:
             logger.error(f"Таймаут Kufar {url}")
             break
-        except Exception as e:
-            logger.error(f"Ошибка парсинга Kufar {url}: {e}", exc_info=True)
-            break
 
-    logger.info(f"Парсинг Kufar завершен. Всего найдено: {len(ads_found)} объявлений.")
+    logger.info(f"Парсинг Kufar завершен за {time.time() - start_time:.2f} сек. Всего найдено: {len(ads_found)} объявлений.")
     return ads_found
-
-
 
 def save_ads_to_db(ads):
     """Сохраняет список объявлений в БД PostgreSQL, используя ON CONFLICT."""
@@ -193,18 +192,20 @@ def save_ads_to_db(ads):
         with get_db_connection() as conn:
             with conn.cursor() as cur:
                 for record in data_to_insert:
-                    cur.execute(insert_query, record)
-                    if cur.rowcount > 0:
-                        saved_count += 1
+                    try:
+                        cur.execute(insert_query, record)
+                        if cur.rowcount > 0:
+                            saved_count += 1
+                    except psycopg2.Error as e:
+                        logger.error(f"Ошибка сохранения записи {record[0]}: {e}")
+                        conn.rollback()
+                    else:
+                        conn.commit()
         logger.info(f"Попытка сохранения {len(data_to_insert)} объявлений. Успешно сохранено (новых): {saved_count}.")
     except (psycopg2.Error, ValueError) as e:
         logger.error(f"Ошибка при сохранении объявлений в PostgreSQL: {e}", exc_info=True)
-    except Exception as e:
-        logger.error(f"Непредвиденная ошибка при сохранении в БД: {e}", exc_info=True)
 
     return saved_count
-
-
 
 async def run_parser():
     """Запускает парсеры и сохраняет результаты."""
@@ -227,17 +228,13 @@ async def run_parser():
         saved_count = save_ads_to_db(all_new_ads)
         logger.info(f"Парсинг завершен. Сохранено {saved_count} новых объявлений.")
 
-
-
 app = Flask(__name__, template_folder='templates')
 
 init_db()
 
-
 @app.route('/')
 def index_redirect():
     return "Flask backend is running. Access Mini App via Telegram."
-
 
 @app.route('/mini-app')
 def mini_app():
@@ -247,7 +244,6 @@ def mini_app():
     except Exception as e:
         logger.error(f"Ошибка при рендеринге шаблона index.html: {e}", exc_info=True)
         return "Ошибка загрузки приложения.", 500
-
 
 @app.route('/api/ads')
 def get_ads():
@@ -261,6 +257,7 @@ def get_ads():
         max_price = request.args.get('max_price', type=int)
         rooms = request.args.get('rooms')
         kufar_offset = request.args.get('kufar_offset', default=0, type=int)
+        limit = request.args.get('limit', default=KUFAR_LIMIT, type=int)
 
         where_clauses = ["source = %s"]
         params = ['Kufar']
@@ -274,7 +271,7 @@ def get_ads():
         if max_price is not None:
             where_clauses.append("price <= %s")
             params.append(max_price)
-        if rooms:
+        if rooms and rooms != 'any':
             if rooms == '4+':
                 where_clauses.append("rooms >= 4")
             elif rooms.isdigit():
@@ -290,7 +287,7 @@ def get_ads():
             ORDER BY parsed_at DESC
             LIMIT %s OFFSET %s
         """
-        data_params = params + [KUFAR_LIMIT, kufar_offset]
+        data_params = params + [limit, kufar_offset]
 
         count_query = f"SELECT COUNT(*) FROM ads WHERE {where_sql}"
         count_params = params
@@ -300,26 +297,18 @@ def get_ads():
 
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                try:
-                    cur.execute(count_query, count_params)
-                    kufar_total_matching = cur.fetchone()[0]
-                except psycopg2.Error as e:
-                    logger.error(f"Ошибка при подсчете Kufar в PostgreSQL: {e}")
-                    raise
+                cur.execute(count_query, count_params)
+                kufar_total_matching = cur.fetchone()[0]
 
-                try:
-                    cur.execute(data_query, data_params)
-                    kufar_ads = [dict(row) for row in cur.fetchall()]
-                except psycopg2.Error as e:
-                    logger.error(f"Ошибка при получении объявлений Kufar из PostgreSQL: {e}")
-                    raise
+                cur.execute(data_query, data_params)
+                kufar_ads = [dict(row) for row in cur.fetchall()]
 
         result_ads = kufar_ads
         next_kufar_offset = kufar_offset + len(kufar_ads)
         has_more = next_kufar_offset < kufar_total_matching
 
         logger.info(
-            f"API (PG): city={city}, price={min_price}-{max_price}, rooms={rooms}, kuf_off={kufar_offset}. "
+            f"API (PG): city={city}, price={min_price}-{max_price}, rooms={rooms}, kuf_off={kufar_offset}, limit={limit}. "
             f"Found: {len(result_ads)}, Total Kufar: {kufar_total_matching}, Has More: {has_more}")
 
         return jsonify({
@@ -331,11 +320,6 @@ def get_ads():
     except (psycopg2.Error, ValueError) as e:
         logger.error(f"Ошибка БД PostgreSQL в API /api/ads: {e}", exc_info=True)
         return jsonify({"error": "Database error"}), 500
-    except Exception as e:
-        logger.error(f"Непредвиденная ошибка в API /api/ads: {e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
-
-
 
 try:
     from telegram import Update
@@ -350,16 +334,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message:
         await update.message.reply_text("Привет! Нажми кнопку меню для поиска квартир.")
 
-
 async def app_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     app_url = f"https://{RENDER_EXTERNAL_HOSTNAME}/mini-app" if RENDER_EXTERNAL_HOSTNAME else "URL не определен"
     if update.message:
         await update.message.reply_text(f"Ссылка на Mini App: {app_url}")
 
-
 async def webhook_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pass
-
 
 application = None
 if tg_bot_initialized and TELEGRAM_TOKEN:
@@ -367,8 +348,6 @@ if tg_bot_initialized and TELEGRAM_TOKEN:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("app", app_link))
     application.add_handler(MessageHandler(filters.ALL, webhook_handler))
-
-
 
 async def main():
     scheduler = AsyncIOScheduler(timezone="Europe/Minsk")
@@ -392,7 +371,6 @@ async def main():
             logger.info("Telegram бот инициализирован и готов принимать вебхуки.")
         except Exception as e:
             logger.error(f"Ошибка при инициализации Telegram бота или вебхука: {e}", exc_info=True)
-
 
 if __name__ != '__main__':
     loop = asyncio.get_event_loop()
