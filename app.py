@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
-import random
 import time
 import psycopg2
 import psycopg2.extras
@@ -10,6 +9,7 @@ import aiohttp
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify, render_template, request
+from pyppeteer import launch
 
 # --- Настройки Логирования ---
 logging.basicConfig(
@@ -31,11 +31,10 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     logger.error("Не установлена переменная окружения DATABASE_URL!")
 
-KUFAR_LIMIT = 7  # Синхронизировано с JS
-ONLINER_LIMIT = 7  # Синхронизировано с JS
+KUFAR_LIMIT = 7
+ONLINER_LIMIT = 7
 
 def get_db_connection():
-    """Устанавливает соединение с PostgreSQL."""
     if not DATABASE_URL:
         raise ValueError("DATABASE_URL не установлена")
     try:
@@ -46,11 +45,6 @@ def get_db_connection():
         raise
 
 def init_db():
-    """Инициализирует БД PostgreSQL, создает таблицу, если она не существует."""
-    if not DATABASE_URL:
-        logger.error("Невозможно инициализировать БД: DATABASE_URL не установлена.")
-        return
-
     create_table_query = """
         CREATE TABLE IF NOT EXISTS ads (
             link TEXT PRIMARY KEY,
@@ -61,7 +55,7 @@ def init_db():
             address TEXT,
             image TEXT,
             description TEXT,
-            timestamp INTEGER
+            parsed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
     """
     try:
@@ -73,17 +67,16 @@ def init_db():
         logger.error(f"Ошибка при инициализации БД PostgreSQL: {e}", exc_info=True)
 
 async def parse_kufar(session, city, min_price=None, max_price=None, rooms=None):
-    """Асинхронно парсит объявления с Kufar, используя селекторы из JS."""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
         "Referer": "https://www.kufar.by/",
     }
-    url = f"https://re.kufar.by/l/{city}/snyat/kvartiru-dolgosrochno"
-    if rooms:
-        url += f"/{rooms}k"
+    url = f"https://www.kufar.by/l/r~{city}/kvartiry/snyat"
     params = {"cur": "USD"}
+    if rooms:
+        params["rooms"] = rooms
     if min_price and max_price:
         params["prc"] = f"r:{min_price},{max_price}"
 
@@ -97,27 +90,44 @@ async def parse_kufar(session, city, min_price=None, max_price=None, rooms=None)
             soup = BeautifulSoup(html, "html.parser")
             ads_found = []
 
-            listings = soup.select("section > a")  # Селектор из JS
+            listings = soup.select("article[class*='styles_wrapper__']")
             if not listings:
                 logger.warning(f"Не найдены блоки объявлений на Kufar: {url}")
+                with open(f"kufar_{city}.html", "w", encoding="utf-8") as f:
+                    f.write(html)
+                logger.info(f"Сохранен HTML Kufar для {city} в kufar_{city}.html")
                 return []
 
             for listing in listings:
-                link = listing.get("href", "")
+                link_tag = listing.select_one("a[class*='styles_link__']")
+                link = link_tag.get("href", "") if link_tag else ""
                 if not link:
                     continue
-                full_link = f"https://re.kufar.by{link}" if not link.startswith("http") else link
+                full_link = f"https://www.kufar.by{link}" if not link.startswith("http") else link
 
-                price_text = listing.select_one(".styles_price__usd__HpXMa").text if listing.select_one(".styles_price__usd__HpXMa") else ""
-                price = int("".join(filter(str.isdigit, price_text))) if price_text else None
+                price_text = listing.select_one("span[class*='styles_price__']").text if listing.select_one("span[class*='styles_price__']") else ""
+                price = None
+                try:
+                    price_clean = ''.join(filter(str.isdigit, price_text))
+                    price = int(price_clean) if price_clean else None
+                except ValueError:
+                    logger.warning(f"Некорректная цена в объявлении Kufar: {price_text}")
+                    continue
 
-                rooms_text = listing.select_one(".styles_parameters__7zKlL").text if listing.select_one(".styles_parameters__7zKlL") else ""
-                rooms_match = [int(d) for d in rooms_text if d.isdigit()]
-                room_count = rooms_match[0] if rooms_match else None
+                desc_text = listing.select_one("h3[class*='styles_title__']").text.strip() if listing.select_one("h3[class*='styles_title__']") else ""
+                room_count = None
+                if "1-комн" in desc_text or "однокомнатная" in desc_text or "1-к" in desc_text:
+                    room_count = 1
+                elif "2-комн" in desc_text or "двухкомнатная" in desc_text or "2-к" in desc_text:
+                    room_count = 2
+                elif "3-комн" in desc_text or "трехкомнатная" in desc_text or "3-к" in desc_text:
+                    room_count = 3
+                elif "4-комн" in desc_text or "четырехкомнатная" in desc_text or "4-к" in desc_text:
+                    room_count = 4
 
-                address = listing.select_one(".styles_address__l6Qe_").text.strip() if listing.select_one(".styles_address__l6Qe_") else "Адрес не указан"
-                image = listing.select_one("img").get("src") if listing.select_one("img") else None
-                description = listing.select_one(".styles_body__5BrnC").text.strip() if listing.select_one(".styles_body__5BrnC") else "Описание не указано"
+                address = listing.select_one("span[class*='styles_address__']").text.strip() if listing.select_one("span[class*='styles_address__']") else "Адрес не указан"
+                image = listing.select_one("img[class*='styles_image__']").get("src") if listing.select_one("img[class*='styles_image__']") else None
+                description = desc_text or "Описание не указано"
 
                 if not price or (rooms and room_count != int(rooms)) or (min_price and price < min_price) or (max_price and price > max_price):
                     continue
@@ -131,7 +141,6 @@ async def parse_kufar(session, city, min_price=None, max_price=None, rooms=None)
                     "address": address,
                     "image": image,
                     "description": description,
-                    "timestamp": int(time.time())
                 }
                 ads_found.append(ad_data)
 
@@ -145,8 +154,7 @@ async def parse_kufar(session, city, min_price=None, max_price=None, rooms=None)
         logger.error(f"Таймаут Kufar {url}")
         return []
 
-async def parse_onliner(session, city, min_price=None, max_price=None, rooms=None):
-    """Асинхронно парсит объявления с Onliner (без Puppeteer, только aiohttp)."""
+async def parse_onliner(city, min_price=None, max_price=None, rooms=None):
     ONLINER_CITY_URLS = {
         "minsk": "https://r.onliner.by/ak/#bounds[lb][lat]=53.820922446131&bounds[lb][long]=27.344970703125&bounds[rt][lat]=53.97547425743&bounds[rt][long]=27.77961730957",
         "brest": "https://r.onliner.by/ak/#bounds[lb][lat]=51.941725203142&bounds[lb][long]=23.492889404297&bounds[rt][lat]=52.234528294214&bounds[rt][long]=23.927536010742",
@@ -160,11 +168,6 @@ async def parse_onliner(session, city, min_price=None, max_price=None, rooms=Non
         logger.error(f"Неизвестный город для Onliner: {city}")
         return []
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-    }
     params = {}
     if rooms:
         params["rent_type[]"] = f"{rooms}_room{'s' if rooms > 1 else ''}"
@@ -178,66 +181,86 @@ async def parse_onliner(session, city, min_price=None, max_price=None, rooms=Non
     start_time = time.time()
 
     try:
-        async with session.get(url, headers=headers, timeout=20) as response:
-            response.raise_for_status()
-            html = await response.text()
-            soup = BeautifulSoup(html, "html.parser")
-            ads_found = []
+        browser = await launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox'],
+            executablePath=os.environ.get('PUPPETEER_EXECUTABLE_PATH', '/usr/bin/chromium-browser')
+        )
+        page = await browser.newPage()
+        await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0")
+        await page.goto(url, {'waitUntil': 'networkidle2', 'timeout': 30000})
+        await page.wait_for_selector(".classified", timeout=10000)  # Ожидание загрузки объявлений
 
-            listings = soup.select('a[href*="/ak/apartments/"]')
-            if not listings:
-                logger.warning(f"Не найдены объявления на Onliner: {url}")
-                return []
+        html = await page.content()
+        soup = BeautifulSoup(html, "html.parser")
+        ads_found = []
 
-            for listing in listings:
-                link = listing.get("href", "")
-                if not link.startswith("https://r.onliner.by/ak/apartments/"):
-                    continue
+        listings = soup.select('a[href*="/ak/apartments/"]')
+        if not listings:
+            logger.warning(f"Не найдены объявления на Onliner: {url}")
+            with open(f"onliner_{city}.html", "w", encoding="utf-8") as f:
+                f.write(html)
+            logger.info(f"Сохранен HTML Onliner для {city} в onliner_{city}.html")
+            await browser.close()
+            return []
 
-                price_text = listing.select_one(".classified__price-value span[data-bind*='formatPrice']").text.strip() if listing.select_one(".classified__price-value span[data-bind*='formatPrice']") else ""
-                price = int("".join(filter(str.isdigit, price_text))) if price_text else None
+        for listing in listings:
+            link = listing.get("href", "")
+            if not link.startswith("https://r.onliner.by/ak/apartments/"):
+                continue
 
-                rooms_text = listing.select_one(".classified__caption-item.classified__caption-item_type").text if listing.select_one(".classified__caption-item.classified__caption-item_type") else ""
+            price_text = listing.select_one(".classified__price-value").text.strip() if listing.select_one(".classified__price-value") else ""
+            price = None
+            try:
+                price_clean = ''.join(filter(str.isdigit, price_text))
+                price = int(price_clean) if price_clean else None
+            except ValueError:
+                logger.warning(f"Некорректная цена в объявлении Onliner: {price_text}")
+                continue
+
+            rooms_text = listing.select_one(".classified__caption-item_type").text if listing.select_one(".classified__caption-item_type") else ""
+            room_count = None
+            try:
                 rooms_match = [int(d) for d in rooms_text if d.isdigit()]
                 room_count = rooms_match[0] if rooms_match else None
+            except ValueError:
+                logger.warning(f"Некорректное количество комнат в объявлении Onliner: {rooms_text}")
 
-                address = listing.select_one(".classified__caption-item.classified__caption-item_adress").text.strip() if listing.select_one(".classified__caption-item.classified__caption-item_adress") else "Адрес не указан"
-                image = listing.select_one(".classified__figure img").get("src") if listing.select_one(".classified__figure img") else None
-                description = listing.select_one(".classified__caption-item.classified__caption-item_type").text.strip() if listing.select_one(".classified__caption-item.classified__caption-item_type") else "Описание не указано"
+            address = listing.select_one(".classified__caption-item_adress").text.strip() if listing.select_one(".classified__caption-item_adress") else "Адрес не указан"
+            image = listing.select_one(".classified__figure img").get("src") if listing.select_one(".classified__figure img") else None
+            description = rooms_text or "Описание не указано"
 
-                if not price or (rooms and room_count != int(rooms)) or (min_price and price < min_price) or (max_price and price > max_price):
-                    continue
+            if not price or (rooms and room_count != int(rooms)) or (min_price and price < min_price) or (max_price and price > max_price):
+                continue
 
-                ad_data = {
-                    "link": link,
-                    "source": "Onliner",
-                    "city": city,
-                    "price": price,
-                    "rooms": room_count,
-                    "address": address,
-                    "image": image,
-                    "description": description,
-                    "timestamp": int(time.time())
-                }
-                ads_found.append(ad_data)
+            ad_data = {
+                "link": link,
+                "source": "Onliner",
+                "city": city,
+                "price": price,
+                "rooms": room_count,
+                "address": address,
+                "image": image,
+                "description": description,
+            }
+            ads_found.append(ad_data)
 
-            logger.info(f"Парсинг Onliner завершен за {time.time() - start_time:.2f} сек. Найдено: {len(ads_found)} объявлений.")
-            return ads_found[:ONLINER_LIMIT]
+        await browser.close()
+        logger.info(f"Парсинг Onliner завершен за {time.time() - start_time:.2f} сек. Найдено: {len(ads_found)} объявлений.")
+        return ads_found[:ONLINER_LIMIT]
 
-    except aiohttp.ClientError as e:
-        logger.error(f"Ошибка сети Onliner {url}: {e}")
-        return []
-    except asyncio.TimeoutError:
-        logger.error(f"Таймаут Onliner {url}")
+    except Exception as e:
+        logger.error(f"Ошибка парсинга Onliner {url}: {e}", exc_info=True)
+        if 'browser' in locals():
+            await browser.close()
         return []
 
 def save_ads_to_db(ads):
-    """Сохраняет объявления в PostgreSQL."""
     if not ads or not DATABASE_URL:
         return 0
 
     insert_query = """
-        INSERT INTO ads (link, source, city, price, rooms, address, image, description, timestamp)
+        INSERT INTO ads (link, source, city, price, rooms, address, image, description, parsed_at)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (link) DO NOTHING;
     """
@@ -245,7 +268,7 @@ def save_ads_to_db(ads):
         (
             ad["link"], ad["source"], ad["city"], ad["price"],
             ad["rooms"], ad["address"], ad["image"], ad["description"],
-            ad["timestamp"]
+            datetime.now(timezone.utc)
         ) for ad in ads
     ]
 
@@ -270,7 +293,6 @@ def save_ads_to_db(ads):
     return saved_count
 
 async def run_parser():
-    """Запускает парсеры и сохраняет результаты."""
     logger.info("Запуск периодической задачи парсинга...")
     async with aiohttp.ClientSession() as session:
         cities = ["minsk", "vitebsk", "brest", "grodno", "gomel", "mogilev"]
@@ -278,7 +300,7 @@ async def run_parser():
 
         for city in cities:
             kufar_task = parse_kufar(session, city)
-            onliner_task = parse_onliner(session, city)
+            onliner_task = parse_onliner(city)
             results = await asyncio.gather(kufar_task, onliner_task, return_exceptions=True)
 
             for result in results:
@@ -301,7 +323,6 @@ def index_redirect():
 
 @app.route('/mini-app')
 def mini_app():
-    """Отдает HTML страницу Mini App."""
     try:
         return render_template('index.html')
     except Exception as e:
@@ -310,7 +331,6 @@ def mini_app():
 
 @app.route('/api/ads')
 def get_ads():
-    """API эндпоинт для получения объявлений из PostgreSQL."""
     if not DATABASE_URL:
         return jsonify({"error": "Database not configured"}), 500
 
@@ -340,10 +360,10 @@ def get_ads():
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
         data_query = f"""
-            SELECT link, source, city, price, rooms, address, image, description, timestamp
+            SELECT link, source, city, price, rooms, address, image, description, parsed_at
             FROM ads
             WHERE {where_sql}
-            ORDER BY timestamp DESC
+            ORDER BY parsed_at DESC
             LIMIT %s OFFSET %s
         """
         params.extend([limit, offset])
@@ -389,7 +409,7 @@ if tg_bot_initialized and TELEGRAM_TOKEN:
     application.add_handler(MessageHandler(filters.ALL, webhook_handler))
 
 async def main():
-    await run_parser()  # Немедленный запуск парсинга
+    await run_parser()
     scheduler = AsyncIOScheduler(timezone="Europe/Minsk")
     scheduler.add_job(run_parser, 'interval', hours=4)
     scheduler.start()
