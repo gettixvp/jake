@@ -6,3 +6,4 @@ apscheduler
 hypercorn
 requests
 psycopg2-binary # <--- Добавлена эта строка
+pyppeteer
