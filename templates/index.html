@@ -263,7 +263,7 @@
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
             <h1 class="text-xl font-bold text-tg-text">Квартиры на Kufar</h1>
             <div class="relative">
-                <button id="menu-button" class="w-10 h-10 rounded-full bg-tg-button text-tg-buttonText flex items-center justify-center focus:outline-none hover:opacity-90 active:opacity-100 transition-opacity">
+                <button id="menu-button" class="w-10 h-10 rounded-full bg-tg-button text-tg-buttonText flex items-center justify-center focus:outline-none hover:opacity-90 active:opacity-100 transition-opacity" aria-label="Открыть меню">
                     <i class="fas fa-ellipsis-v"></i>
                 </button>
                 <div id="dropdown-menu" class="dropdown-menu absolute right-0 mt-2 py-2 w-48 bg-tg-bg rounded-lg shadow-xl z-50 border border-gray-200 dark:border-gray-700 hidden">
@@ -321,18 +321,18 @@
                     <div class="relative px-4 py-2 bg-tg-secondary rounded-xl">
                         <input type="range" min="0" max="10000" value="5000" step="100" id="price-range" class="w-full range-slider mb-4">
                         <div class="flex justify-between mt-2 text-sm">
-                            <input type="number" id="min_price" placeholder="От" class="w-24 px-3 py-2 bg-tg-bg text-tg-text border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-tg-link">
+                            <input type="number" id="min_price" placeholder="От" class="w-24 px-3 py-2 bg-tg-bg text-tg-text border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-tg-link" min="0" max="10000">
                             <span class="text-tg-hint flex items-center">до</span>
-                            <input type="number" id="max_price" placeholder="До" class="w-24 px-3 py-2 bg-tg-bg text-tg-text border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-tg-link">
+                            <input type="number" id="max_price" placeholder="До" class="w-24 px-3 py-2 bg-tg-bg text-tg-text border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-tg-link" min="0" max="10000">
                         </div>
                     </div>
                 </div>
 
                 <div class="flex space-x-3">
-                    <button type="reset" class="flex-1 px-4 py-3 bg-tg-secondary text-tg-text font-medium rounded-xl btn-3d hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors">
+                    <button type="reset" class="flex-1 px-4 py-3 bg-tg-secondary text-tg-text font-medium rounded-xl btn-3d hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors" aria-label="Сбросить фильтры">
                         Сбросить
                     </button>
-                    <button type="submit" id="search-button" class="flex-1 px-4 py-3 bg-tg-button text-tg-buttonText font-medium rounded-xl btn-3d hover:opacity-90 active:opacity-100 transition-opacity">
+                    <button type="submit" id="search-button" class="flex-1 px-4 py-3 bg-tg-button text-tg-buttonText font-medium rounded-xl btn-3d hover:opacity-90 active:opacity-100 transition-opacity" aria-label="Поиск квартир">
                         Искать <i class="fas fa-search ml-2"></i>
                     </button>
                 </div>
@@ -356,13 +356,13 @@
                 <i class="far fa-folder-open text-4xl text-tg-hint mb-3"></i>
                 <h3 class="text-lg font-medium text-tg-text mb-1">Нет подходящих квартир</h3>
                 <p class="text-sm text-tg-hint">Попробуйте изменить параметры поиска</p>
-                <button class="mt-4 px-4 py-2 text-sm font-medium text-tg-link rounded-lg hover:bg-tg-secondary transition-colors" id="reset-filters-btn">
+                <button class="mt-4 px-4 py-2 text-sm font-medium text-tg-link rounded-lg hover:bg-tg-secondary transition-colors" id="reset-filters-btn" aria-label="Сбросить фильтры">
                     Сбросить фильтры
                 </button>
             </div>
 
             <div id="load-more" class="flex justify-center my-6 hidden">
-                <button class="px-6 py-3 bg-tg-secondary text-tg-text font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" id="load-more-btn">
+                <button class="px-6 py-3 bg-tg-secondary text-tg-text font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" id="load-more-btn" aria-label="Загрузить еще объявления">
                     Показать ещё
                 </button>
             </div>
@@ -378,7 +378,7 @@
                 <i class="far fa-heart text-4xl text-tg-hint mb-3"></i>
                 <h3 class="text-lg font-medium text-tg-text mb-1">Нет избранных квартир</h3>
                 <p class="text-sm text-tg-hint">Добавляйте объявления в избранное, нажав на сердечко</p>
-                <button class="mt-4 px-4 py-2 text-sm font-medium text-tg-link rounded-lg hover:bg-tg-secondary transition-colors" id="browse-apartments-btn">
+                <button class="mt-4 px-4 py-2 text-sm font-medium text-tg-link rounded-lg hover:bg-tg-secondary transition-colors" id="browse-apartments-btn" aria-label="Перейти к поиску квартир">
                     Найти квартиры
                 </button>
             </div>
@@ -386,18 +386,18 @@
     </main>
 
     <!-- Floating action button -->
-    <button class="fab bg-tg-button text-white hover:opacity-90 active:opacity-100 transition-opacity" id="fab-button">
+    <button class="fab bg-tg-button text-white hover:opacity-90 active:opacity-100 transition-opacity" id="fab-button" aria-label="Обновить объявления">
         <i class="fas fa-sync-alt"></i>
     </button>
 
     <!-- Bottom navigation -->
     <nav class="bottom-nav fixed bottom-0 w-full bg-tg-bg border-t border-opacity-10 border-gray-400 dark:border-gray-700 z-40">
         <div class="flex justify-around items-center py-3">
-            <button class="nav-btn flex flex-col items-center justify-center p-2 text-tg-button" data-page="search">
+            <button class="nav-btn flex flex-col items-center justify-center p-2 text-tg-button" data-page="search" aria-label="Перейти к поиску">
                 <i class="fas fa-home text-xl"></i>
                 <span class="text-xs mt-1">Поиск</span>
             </button>
-            <button class="nav-btn flex flex-col items-center justify-center p-2 text-tg-hint" data-page="favorites">
+            <button class="nav-btn flex flex-col items-center justify-center p-2 text-tg-hint" data-page="favorites" aria-label="Перейти к избранному">
                 <i class="far fa-heart text-xl"></i>
                 <span class="text-xs mt-1">Избранное</span>
             </button>
@@ -405,7 +405,6 @@
     </nav>
 
     <script>
-        // Telegram WebApp initialization
         const tg = window.Telegram.WebApp;
         let activeTab = 'search';
         let savedAds = JSON.parse(localStorage.getItem('savedAds')) || [];
@@ -414,63 +413,50 @@
         let isLoading = false;
         let hasMoreResults = true;
         let isDarkMode = tg.colorScheme === 'dark';
-        
-        // Initialize app
+        const LIMIT = 5; // Синхронизировано с бэкендом
+
         document.addEventListener('DOMContentLoaded', () => {
             initApp();
             setupEventListeners();
-            
-            // Load initial ads
             loadAds();
         });
-        
+
         function initApp() {
-            // Apply Telegram theme
             applyTheme();
             tg.expand();
             tg.ready();
-            
-            // Set initial dark mode
             document.body.classList.toggle('dark', isDarkMode);
-            
-            // Set price range values
             document.getElementById('price-range').value = 5000;
             document.getElementById('min_price').value = '';
             document.getElementById('max_price').value = '';
-            
-            // Theme change event
             tg.onEvent('themeChanged', () => {
                 isDarkMode = tg.colorScheme === 'dark';
                 document.body.classList.toggle('dark', isDarkMode);
                 applyTheme();
             });
         }
-        
+
         function applyTheme() {
             const theme = tg.themeParams;
             const root = document.documentElement;
-            
             for (const key in theme) {
                 const cssVar = `--tg-theme-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
                 root.style.setProperty(cssVar, theme[key]);
             }
         }
-        
+
         function setupEventListeners() {
-            // Menu dropdown
             document.getElementById('menu-button').addEventListener('click', () => {
                 document.getElementById('dropdown-menu').classList.toggle('hidden');
                 triggerHapticFeedback('light');
             });
-            
-            // Close dropdown when clicking outside
+
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('#menu-button') && !e.target.closest('#dropdown-menu')) {
                     document.getElementById('dropdown-menu').classList.add('hidden');
                 }
             });
-            
-            // Form submission
+
             document.getElementById('filter-form').addEventListener('submit', (e) => {
                 e.preventDefault();
                 currentPage = 1;
@@ -478,44 +464,53 @@
                 saveFilters();
                 loadAds();
             });
-            
-            document.getElementById('filter-form').addEventListener('reset', () => {
-                resetFilters();
-            });
-            
-            // Bottom navigation
+
+            document.getElementById('filter-form').addEventListener('reset', resetFilters);
+
             document.querySelectorAll('.nav-btn').forEach(button => {
                 button.addEventListener('click', () => {
                     const page = button.dataset.page;
                     navigateTo(page);
                 });
             });
-            
-            // Dropdown menu buttons
+
             document.getElementById('saved-search-btn').addEventListener('click', (e) => {
                 e.preventDefault();
                 document.getElementById('dropdown-menu').classList.add('hidden');
                 navigateTo('favorites');
             });
-            
+
             document.getElementById('help-btn').addEventListener('click', (e) => {
                 e.preventDefault();
                 document.getElementById('dropdown-menu').classList.add('hidden');
                 showHelp();
             });
-            
-            // Other buttons
+
             document.getElementById('reset-filters-btn').addEventListener('click', resetFilters);
             document.getElementById('browse-apartments-btn').addEventListener('click', () => navigateTo('search'));
             document.getElementById('load-more-btn').addEventListener('click', loadMoreAds);
             document.getElementById('fab-button').addEventListener('click', refreshAds);
-            
-            // Price range inputs
+
             document.getElementById('price-range').addEventListener('input', updatePriceInputs);
             document.getElementById('min_price').addEventListener('input', updatePriceSlider);
             document.getElementById('max_price').addEventListener('input', updatePriceSlider);
+
+            // Делегирование событий для карточек объявлений
+            document.getElementById('results').addEventListener('click', (e) => {
+                const saveBtn = e.target.closest('.save-btn');
+                const viewBtn = e.target.closest('.view-btn');
+                if (saveBtn) toggleSaveAd(saveBtn.dataset.link, saveBtn);
+                if (viewBtn) viewAdDetails(viewBtn.dataset.link);
+            });
+
+            document.getElementById('favorites-list').addEventListener('click', (e) => {
+                const saveBtn = e.target.closest('.save-btn');
+                const viewBtn = e.target.closest('.view-btn');
+                if (saveBtn) toggleSaveAd(saveBtn.dataset.link, saveBtn);
+                if (viewBtn) viewAdDetails(viewBtn.dataset.link);
+            });
         }
-        
+
         function saveFilters() {
             currentFilters = {
                 city: document.getElementById('city').value,
@@ -524,36 +519,37 @@
                 max_price: document.getElementById('max_price').value
             };
         }
-        
+
         function loadAds() {
             if (isLoading) return;
-            
+
             const city = document.getElementById('city').value;
             const rooms = document.getElementById('rooms').value;
             const minPrice = document.getElementById('min_price').value;
             const maxPrice = document.getElementById('max_price').value;
-            
-            // Show loading state
+
             document.getElementById('results').innerHTML = '';
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('no-results').classList.add('hidden');
             document.getElementById('load-more').classList.add('hidden');
-            
+
             isLoading = true;
-            
-            // Simulate API call to your Flask backend
-            const apiUrl = buildApiUrl(city, minPrice, maxPrice, rooms, 1);
-            
+
+            const apiUrl = buildApiUrl(city, minPrice, maxPrice, rooms, currentPage);
+
             fetch(apiUrl)
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('loader').classList.add('hidden');
                     isLoading = false;
-                    
-                    if (data.ads && data.ads.length > 0) {
+
+                    if (!data || !Array.isArray(data.ads)) {
+                        throw new Error('Некорректный ответ от сервера');
+                    }
+
+                    if (data.ads.length > 0) {
                         renderAds(data.ads);
                         hasMoreResults = data.has_more;
-                        
                         if (hasMoreResults) {
                             document.getElementById('load-more').classList.remove('hidden');
                         }
@@ -569,42 +565,40 @@
                     tg.showAlert('Ошибка при загрузке объявлений. Попробуйте позже.');
                 });
         }
-        
+
         function loadMoreAds() {
             if (isLoading || !hasMoreResults) return;
-            
+
             currentPage++;
             const city = document.getElementById('city').value;
             const rooms = document.getElementById('rooms').value;
             const minPrice = document.getElementById('min_price').value;
             const maxPrice = document.getElementById('max_price').value;
-            
+
             document.getElementById('load-more').classList.add('hidden');
-            
-            // Show loading state in the load more button
             const loadMoreBtn = document.getElementById('load-more-btn');
             loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Загрузка...';
-            
+
             isLoading = true;
-            
-            // Simulate API call to your Flask backend with pagination
+
             const apiUrl = buildApiUrl(city, minPrice, maxPrice, rooms, currentPage);
-            
+
             fetch(apiUrl)
                 .then(response => response.json())
                 .then(data => {
                     isLoading = false;
                     loadMoreBtn.innerHTML = 'Показать ещё';
-                    
-                    if (data.ads && data.ads.length > 0) {
+
+                    if (!data || !Array.isArray(data.ads)) {
+                        throw new Error('Некорректный ответ от сервера');
+                    }
+
+                    if (data.ads.length > 0) {
                         renderAds(data.ads, true);
                         hasMoreResults = data.has_more;
-                        
                         if (hasMoreResults) {
                             document.getElementById('load-more').classList.remove('hidden');
                         }
-                        
-                        // Scroll to show new items
                         setTimeout(() => {
                             const resultsContainer = document.getElementById('results');
                             const lastCard = resultsContainer.lastChild;
@@ -622,43 +616,34 @@
                     tg.showAlert('Ошибка при загрузке дополнительных объявлений.');
                 });
         }
-        
+
         function buildApiUrl(city, minPrice, maxPrice, rooms, page) {
             let url = `/api/ads?source=Kufar&city=${city}`;
-            
             if (minPrice) url += `&min_price=${minPrice}`;
             if (maxPrice) url += `&max_price=${maxPrice}`;
             if (rooms && rooms !== 'any') url += `&rooms=${rooms}`;
-            
-            // Simulate pagination (in a real app, you would use KUFAR_LIMIT from your backend)
-            const limit = 5;
-            const offset = (page - 1) * limit;
-            url += `&kufar_offset=${offset}`;
-            
+            const offset = (page - 1) * LIMIT;
+            url += `&kufar_offset=${offset}&limit=${LIMIT}`;
             return url;
         }
-        
+
         function refreshAds() {
             triggerHapticFeedback('light');
             currentPage = 1;
             loadAds();
         }
-        
+
         function renderAds(ads, append = false) {
             const resultsContainer = document.getElementById('results');
-            
-            if (!append) {
-                resultsContainer.innerHTML = '';
-            }
-            
+            if (!append) resultsContainer.innerHTML = '';
+
             if (ads.length === 0 && !append) {
                 document.getElementById('no-results').classList.remove('hidden');
                 return;
             }
-            
+
             ads.forEach(ad => {
                 const isSaved = savedAds.includes(ad.link);
-                
                 const card = document.createElement('div');
                 card.className = 'ad-card bg-tg-bg rounded-2xl overflow-hidden shadow-sm relative';
                 card.innerHTML = `
@@ -667,7 +652,7 @@
                              alt="${ad.description || 'Квартира'}" 
                              class="w-full h-48 object-cover">
                         <button class="absolute top-2 left-2 w-10 h-10 rounded-full bg-white bg-opacity-90 ${isSaved ? 'text-red-500' : 'text-gray-400'} flex items-center justify-center focus:outline-none save-btn" 
-                                data-link="${ad.link}">
+                                data-link="${ad.link}" aria-label="Сохранить объявление">
                             <i class="far fa-heart text-lg"></i>
                         </button>
                     </div>
@@ -680,49 +665,27 @@
                             <i class="fas fa-map-marker-alt mr-2 text-tg-hint"></i>
                             <span>${ad.city || 'Не указано'}, ${ad.address || 'Адрес не указан'}</span>
                         </div>
-                        <p class="text-tg-text text-sm mb-4 line-clamp-2">
-                            ${ad.description || 'Описание отсутствует'}
-                        </p>
+                        <p class="text-tg-text text-sm mb-4 line-clamp-2">${ad.description || 'Описание отсутствует'}</p>
                         <button class="w-full px-4 py-2 bg-tg-button text-tg-buttonText font-medium rounded-lg btn-3d hover:opacity-90 active:opacity-100 transition-opacity view-btn" 
-                                data-link="${ad.link}">
+                                data-link="${ad.link}" aria-label="Посмотреть объявление">
                             Подробнее
                         </button>
                     </div>
                 `;
-                
                 resultsContainer.appendChild(card);
             });
-            
-            // Add event listeners to new buttons
-            document.querySelectorAll('.save-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    toggleSaveAd(button.dataset.link, button);
-                });
-            });
-            
-            document.querySelectorAll('.view-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    viewAdDetails(button.dataset.link);
-                });
-            });
         }
-        
+
         function renderSavedAds() {
             const container = document.getElementById('favorites-list');
             const emptyState = document.getElementById('favorites-empty');
-            
             if (savedAds.length === 0) {
                 container.innerHTML = '';
                 emptyState.classList.remove('hidden');
                 return;
             }
-            
             container.innerHTML = '';
             emptyState.classList.add('hidden');
-            
-            // In a real app, you would fetch details for all saved ads
             savedAds.forEach(link => {
                 const card = document.createElement('div');
                 card.className = 'ad-card bg-tg-bg rounded-2xl overflow-hidden shadow-sm relative';
@@ -732,178 +695,125 @@
                             <i class="fas fa-image text-4xl"></i>
                         </div>
                         <button class="absolute top-2 left-2 w-10 h-10 rounded-full bg-white bg-opacity-90 text-red-500 flex items-center justify-center focus:outline-none save-btn" 
-                                data-link="${link}">
+                                data-link="${link}" aria-label="Удалить из избранного">
                             <i class="far fa-heart text-lg"></i>
                         </button>
                     </div>
                     <div class="p-4">
-                        <p class="text-tg-text mb-4 line-clamp-2">
-                            Сохранённое объявление
-                        </p>
+                        <p class="text-tg-text mb-4 line-clamp-2">Сохранённое объявление</p>
                         <button class="w-full px-4 py-2 bg-tg-button text-tg-buttonText font-medium rounded-lg btn-3d hover:opacity-90 active:opacity-100 transition-opacity view-btn" 
-                                data-link="${link}">
+                                data-link="${link}" aria-label="Перейти на Kufar">
                             Перейти на Kufar
                         </button>
                     </div>
                 `;
-                
                 container.appendChild(card);
             });
-            
-            // Add event listeners
-            document.querySelectorAll('.save-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    toggleSaveAd(button.dataset.link, button);
-                });
-            });
-            
-            document.querySelectorAll('.view-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    tg.openLink(button.dataset.link);
-                });
-            });
         }
-        
+
         function toggleSaveAd(link, button) {
             triggerHapticFeedback('light');
-            
             const index = savedAds.indexOf(link);
-            
             if (index === -1) {
-                // Add to saved
                 savedAds.unshift(link);
                 tg.showPopup({
                     title: 'Добавлено',
                     message: 'Объявление добавлено в избранное',
                     buttons: [{ type: 'ok' }]
                 });
-                
                 if (button) {
-                    button.innerHTML = '<i class="far fa-heart text-lg"></i>';
                     button.classList.remove('text-gray-400');
                     button.classList.add('text-red-500');
                 }
             } else {
-                // Remove from saved
                 savedAds.splice(index, 1);
                 tg.showPopup({
                     title: 'Удалено',
                     message: 'Объявление удалено из избранного',
                     buttons: [{ type: 'ok' }]
                 });
-                
                 if (button) {
-                    button.innerHTML = '<i class="far fa-heart text-lg"></i>';
                     button.classList.remove('text-red-500');
                     button.classList.add('text-gray-400');
                 }
-                
-                // If we're on favorites tab, refresh the list
-                if (activeTab === 'favorites') {
-                    renderSavedAds();
-                }
+                if (activeTab === 'favorites') renderSavedAds();
             }
-            
             localStorage.setItem('savedAds', JSON.stringify(savedAds));
         }
-        
+
         function viewAdDetails(link) {
             triggerHapticFeedback('light');
             tg.openLink(link);
         }
-        
+
         function navigateTo(page) {
             triggerHapticFeedback('light');
             activeTab = page;
-            
-            // Update active nav button
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('text-tg-button');
                 btn.classList.add('text-tg-hint');
             });
-            
             const activeButton = document.querySelector(`.nav-btn[data-page="${page}"]`);
             activeButton.classList.add('text-tg-button');
             activeButton.classList.remove('text-tg-hint');
-            
-            // Show/hide content
             document.getElementById('search-content').classList.toggle('hidden', page !== 'search');
             document.getElementById('favorites-content').classList.toggle('hidden', page !== 'favorites');
-            
-            // Load content if needed
             if (page === 'favorites') {
                 renderSavedAds();
             } else if (page === 'search' && document.getElementById('results').children.length === 0) {
                 loadAds();
             }
         }
-        
+
         function resetFilters() {
             triggerHapticFeedback('light');
-            
             document.getElementById('city').value = 'minsk';
             document.getElementById('rooms').value = 'any';
             document.getElementById('price-range').value = 5000;
             document.getElementById('min_price').value = '';
             document.getElementById('max_price').value = '';
-            
             currentPage = 1;
             hasMoreResults = true;
             saveFilters();
             loadAds();
         }
-        
+
         function showHelp() {
             triggerHapticFeedback('light');
-            
             tg.showPopup({
                 title: 'Помощь',
                 message: 'Это приложение показывает объявления с Kufar.by. Используйте фильтры для поиска подходящих квартир. Нажмите на сердечко, чтобы сохранить объявление в избранное.',
                 buttons: [
-                    {
-                        type: 'default',
-                        text: 'Перейти на Kufar',
-                        id: 'website'
-                    },
-                    {
-                        type: 'close'
-                    }
+                    { type: 'default', text: 'Перейти на Kufar', id: 'website' },
+                    { type: 'close' }
                 ]
             }, (buttonId) => {
-                if (buttonId === 'website') {
-                    tg.openLink('https://re.kufar.by');
-                }
+                if (buttonId === 'website') tg.openLink('https://re.kufar.by');
             });
         }
-        
+
         function updatePriceInputs() {
             const slider = document.getElementById('price-range');
             const minInput = document.getElementById('min_price');
-            
             minInput.value = slider.value;
         }
-        
+
         function updatePriceSlider() {
             const slider = document.getElementById('price-range');
             const minInput = document.getElementById('min_price');
             const maxInput = document.getElementById('max_price');
-            
             if (minInput.value) {
-                slider.value = Math.min(parseInt(minInput.value), 10000);
+                slider.value = Math.min(Math.max(parseInt(minInput.value) || 0, 0), 10000);
             }
-            
-            // Make sure min <= max
             if (maxInput.value && minInput.value && parseInt(maxInput.value) < parseInt(minInput.value)) {
                 maxInput.value = minInput.value;
             }
         }
-        
+
         function triggerHapticFeedback(style = 'light') {
             if (tg && tg.HapticFeedback) {
                 try {
-                    switch(style) {
+                    switch (style) {
                         case 'light': tg.HapticFeedback.impactOccurred('light'); break;
                         case 'medium': tg.HapticFeedback.impactOccurred('medium'); break;
                         case 'heavy': tg.HapticFeedback.impactOccurred('heavy'); break;
@@ -916,12 +826,12 @@
                 }
             }
         }
-        
+
         function formatPrice(price) {
             if (!price) return 'Цена не указана';
             return `${price.toLocaleString().replace(/,/g, ' ')} BYN`;
         }
-        
+
         function getRoomsText(rooms) {
             if (!rooms) return 'Квартира';
             if (rooms === 1) return '1-комнатная квартира';
