@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Star Casino</title>
-    <link rel="stylesheet" href="css/styles.css">
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Star Casino | Игровые автоматы</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
     <div class="app-container">
         <header class="app-header">
             <div class="balance-container">
-                <span id="userBalance">1000</span> ₽
+                <span id="userBalance">5 000</span> ₽
             </div>
         </header>
         
@@ -21,41 +21,40 @@
         <main class="game-container" id="gameContainer">
             <section id="homeSection" class="page-section active">
                 <div class="promo-banner">
-                    <img src="assets/images/wheel.png" alt="Promo">
-                    <div class="promo-text">Крути колесо - выигрывай до 10 000₽!</div>
+                    <img src="assets/images/promo-bg.jpg" alt="Акция">
+                    <div class="promo-text">Крути колесо - выигрывай до 50 000₽!</div>
                 </div>
                 
                 <div class="games-grid">
                     <div class="game-card" data-game="slots">
-                        <img src="assets/images/slots.png" alt="Slots">
-                        <h3>Слоты</h3>
+                        <img src="assets/images/slots-icon.png" alt="Слоты">
+                        <h3>Игровые автоматы</h3>
                     </div>
                     <div class="game-card" data-game="wheel">
-                        <img src="assets/images/wheel.png" alt="Wheel">
-                        <h3>Колесо</h3>
+                        <img src="assets/images/wheel-icon.png" alt="Колесо">
+                        <h3>Колесо фортуны</h3>
                     </div>
                 </div>
             </section>
 
             <section id="gamesSection" class="page-section">
-                <div class="game-ui" id="slotsGame">
-                    <!-- Сюда будет загружаться интерфейс игры -->
-                </div>
+                <div class="game-ui" id="slotsGame"></div>
             </section>
 
             <section id="profileSection" class="page-section">
                 <div class="profile-header">
-                    <img src="https://via.placeholder.com/80" alt="Avatar" class="profile-avatar" id="userAvatar">
+                    <img src="assets/images/default-avatar.png" alt="Аватар" class="profile-avatar" id="userAvatar">
                     <h2 id="userName">Игрок</h2>
+                    <p class="user-id">ID: <span id="userId">123456</span></p>
                 </div>
                 
                 <div class="action-buttons">
                     <button class="action-btn" id="depositBtn">
-                        <img src="assets/images/deposit.png" alt="Deposit">
+                        <img src="assets/images/deposit-icon.png" alt="Пополнить">
                         <span>Пополнить</span>
                     </button>
                     <button class="action-btn" id="withdrawBtn">
-                        <img src="assets/images/withdraw.png" alt="Withdraw">
+                        <img src="assets/images/withdraw-icon.png" alt="Вывести">
                         <span>Вывести</span>
                     </button>
                 </div>
@@ -63,7 +62,7 @@
                 <div class="history-container">
                     <h3>История игр</h3>
                     <div class="history-list" id="historyList">
-                        <!-- История будет здесь -->
+                        <!-- История будет загружена через JS -->
                     </div>
                 </div>
             </section>
@@ -71,13 +70,16 @@
         
         <nav class="bottom-nav">
             <button class="nav-btn active" data-section="home">
-                <img src="assets/images/home.png" alt="Home">
+                <img src="assets/images/home-icon.png" alt="Главная">
+                <span>Главная</span>
             </button>
             <button class="nav-btn" data-section="games">
-                <img src="assets/images/slots.png" alt="Games">
+                <img src="assets/images/games-icon.png" alt="Игры">
+                <span>Игры</span>
             </button>
             <button class="nav-btn" data-section="profile">
-                <img src="assets/images/profile.png" alt="Profile">
+                <img src="assets/images/profile-icon.png" alt="Профиль">
+                <span>Профиль</span>
             </button>
         </nav>
     </div>
@@ -91,6 +93,8 @@
                 <button class="chip" data-bet="50">50</button>
                 <button class="chip" data-bet="100">100</button>
                 <button class="chip" data-bet="500">500</button>
+                <button class="chip" data-bet="1000">1000</button>
+                <button class="chip" data-bet="5000">5000</button>
             </div>
             <button class="close-modal">Закрыть</button>
         </div>
@@ -99,8 +103,10 @@
     <script src="js/storage.js"></script>
     <script src="js/app.js"></script>
     <script src="js/games.js"></script>
+    
     <audio id="spinSound" src="assets/sounds/spin.mp3" preload="auto"></audio>
     <audio id="winSound" src="assets/sounds/win.mp3" preload="auto"></audio>
     <audio id="loseSound" src="assets/sounds/lose.mp3" preload="auto"></audio>
+    <audio id="clickSound" src="assets/sounds/click.mp3" preload="auto"></audio>
 </body>
 </html>
