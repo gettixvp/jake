@@ -289,3 +289,48 @@ body {
         width: 30%;
     }
 }
+
+/* Дополнение к styles.css */
+
+/* Контейнер для контента игры в горизонтальном режиме */
+.game-content {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.game-content p {
+    font-size: 18px;
+    margin: 0;
+}
+
+.game-content input {
+    margin: 0 10px;
+}
+
+.game-content button {
+    margin: 0 10px;
+}
+
+/* Адаптация модального окна для горизонтального вида */
+.modal-content {
+    max-width: 60%;
+    padding: 30px;
+}
+
+/* Убедимся, что шапка занимает меньше места */
+.header {
+    padding: 8px 12px;
+}
+
+.logo {
+    font-size: 18px;
+}
+
+.balance-card {
+    padding: 6px 12px;
+    font-size: 14px;
+}
