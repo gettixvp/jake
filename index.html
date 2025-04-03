@@ -3,36 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Star Casino</title>
+    <title>Star Casino ✨</title>
     <link rel="stylesheet" href="css/styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
 </head>
 <body>
     <div class="container">
-        <!-- Шапка -->
-        <header class="header">
-            <div class="logo">Star Casino</div>
-            <div class="balance-card">⭐ <span class="balance">0</span></div>
+        <!-- Шапка с анимацией -->
+        <header class="header glow">
+            <div class="logo-wrapper">
+                <img src="assets/images/logo-star.png" class="logo-star">
+                <div class="logo">STAR CASINO</div>
+            </div>
+            <div class="balance-card neon-pulse">
+                <img src="assets/images/coin.png" class="coin-icon">
+                <span class="balance">0</span>
+            </div>
         </header>
-        <!-- Главный экран -->
-        <main class="game-tiles" id="game-tiles"></main>
-        <!-- Боковое меню -->
-        <aside class="sidebar" id="sidebar">
+
+        <!-- Главный экран с играми -->
+        <main class="game-grid" id="game-tiles">
+            <div class="particles"></div>
+        </main>
+
+        <!-- Улучшенное боковое меню -->
+        <aside class="sidebar glassmorphism" id="sidebar">
             <div class="sidebar-header">
-                <img src="assets/images/logo.png" alt="Logo" class="sidebar-logo">
-                <button class="close-btn">✖</button>
+                <div class="user-info">
+                    <img src="assets/images/avatar.png" class="user-avatar">
+                    <div class="username">@username</div>
+                </div>
+                <button class="close-btn neon-btn">✖</button>
             </div>
             <ul class="sidebar-menu" id="sidebar-menu"></ul>
         </aside>
-    </div>
-    <!-- Модальное окно -->
-    <div class="modal" id="modal">
-        <div class="modal-content">
-            <p id="modal-text"></p>
-            <button class="modal-close-btn">Закрыть</button>
+
+        <!-- Модальное окно нового дизайна -->
+        <div class="modal-overlay" id="modal">
+            <div class="modal-content neon-border">
+                <div class="modal-header">
+                    <h3 class="modal-title"></h3>
+                </div>
+                <div class="modal-body">
+                    <p id="modal-text"></p>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-action-btn neon-btn">OK</button>
+                </div>
+            </div>
         </div>
     </div>
+
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="js/particles.min.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/games.js"></script>
     <script src="js/app.js"></script>
