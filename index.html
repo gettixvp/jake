@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Casino</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Шапка -->
+        <header class="header">
+            <button class="menu-btn">☰</button>
+            <div class="logo">Star Casino</div>
+            <div class="balance-card">⭐ <span class="balance">0</span></div>
+        </header>
+        <!-- Главный экран -->
+        <main class="game-tiles" id="game-tiles"></main>
+        <!-- Боковое меню -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <img src="assets/images/logo.png" alt="Logo" class="sidebar-logo">
+                <button class="close-btn">✖</button>
+            </div>
+            <ul class="sidebar-menu" id="sidebar-menu"></ul>
+        </aside>
+    </div>
+    <!-- Модальное окно -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <p id="modal-text"></p>
+            <button class="modal-close-btn">Закрыть</button>
+        </div>
+    </div>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/games.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
