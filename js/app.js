@@ -13,51 +13,41 @@ let user = Storage.load('user', {
 
 let settings = Storage.load('settings', {
     soundEnabled: true,
-    theme: 'light'
+    theme: 'dark' // Новый дизайн всегда темный
 });
 
-// Полноэкранный режим
+// Полноэкранный режим (с проверкой поддержки)
 function enableFullscreen() {
-    if (!tg.isFullscreen) {
+    if (typeof tg.requestFullscreen === 'function') {
         tg.requestFullscreen();
+    } else {
+        console.log('Fullscreen mode is not supported in this Telegram version.');
     }
 }
 enableFullscreen();
 
-// Обработка событий полноэкранного режима
-tg.onEvent('fullscreenChanged', () => {
-    console.log('Fullscreen mode changed:', tg.isFullscreen);
-});
-
-tg.onEvent('fullscreenFailed', () => {
-    showModal('Не удалось включить полноэкранный режим.');
-});
-
-// Запрет поворота через акселерометр (фиксируем горизонтальную ориентацию)
-tg.setDeviceOrientation('landscape');
-
-// Обработка событий активности
-tg.onEvent('activated', () => {
-    console.log('Mini App activated');
-});
-
-tg.onEvent('deactivated', () => {
-    console.log('Mini App deactivated');
-});
-
-// Обработка безопасных зон
-function updateSafeArea() {
-    const safeArea = tg.safeAreaInset;
-    const contentSafeArea = tg.contentSafeAreaInset;
-    document.documentElement.style.setProperty('--safe-area-inset-top', `${safeArea.top}px`);
-    document.documentElement.style.setProperty('--safe-area-inset-bottom', `${safeArea.bottom}px`);
-    document.documentElement.style.setProperty('--safe-area-inset-left', `${safeArea.left}px`);
-    document.documentElement.style.setProperty('--safe-area-inset-right', `${safeArea.right}px`);
+// Фиксация ориентации (с проверкой поддержки)
+if (typeof tg.setDeviceOrientation === 'function') {
+    tg.setDeviceOrientation('landscape');
+} else {
+    console.log('Device orientation setting is not supported in this Telegram version.');
 }
-updateSafeArea();
 
-tg.onEvent('safeAreaChanged', updateSafeArea);
-tg.onEvent('contentSafeAreaChanged', updateSafeArea);
+// Обработка событий (с проверкой поддержки)
+if (tg.onEvent) {
+    tg.onEvent('fullscreenChanged', () => {
+        console.log('Fullscreen mode changed:', tg.isFullscreen);
+    });
+    tg.onEvent('fullscreenFailed', () => {
+        showModal('Не удалось включить полноэкранный режим.');
+    });
+    tg.onEvent('activated', () => {
+        console.log('Mini App activated');
+    });
+    tg.onEvent('deactivated', () => {
+        console.log('Mini App deactivated');
+    });
+}
 
 // Авторизация через Telegram
 async function authenticate() {
@@ -89,7 +79,10 @@ authenticate();
 
 // Обновление баланса
 function updateBalance() {
-    document.querySelector('.balance').textContent = user.balance;
+    const balanceElement = document.querySelector('.balance');
+    if (balanceElement) {
+        balanceElement.textContent = user.balance;
+    }
 }
 updateBalance();
 
@@ -103,6 +96,10 @@ const games = [
 
 function renderMainScreen() {
     const gameTiles = document.getElementById('game-tiles');
+    if (!gameTiles) {
+        console.error('Game tiles container not found!');
+        return;
+    }
     gameTiles.innerHTML = '';
     games.forEach(game => {
         const tile = document.createElement('div');
@@ -118,11 +115,15 @@ renderMainScreen();
 
 // Боковое меню через три точки
 const sidebar = document.getElementById('sidebar');
-tg.MainButton.setText('Меню');
-tg.MainButton.show();
-tg.MainButton.onClick(() => {
-    sidebar.classList.add('active');
-});
+if (tg.MainButton) {
+    tg.MainButton.setText('Меню');
+    tg.MainButton.show();
+    tg.MainButton.onClick(() => {
+        if (sidebar) {
+            sidebar.classList.add('active');
+        }
+    });
+}
 
 const menuItems = [
     { name: 'Главный экран', action: renderMainScreen, icon: 'assets/images/home.png' },
@@ -134,16 +135,23 @@ const menuItems = [
 ];
 
 const sidebarMenu = document.getElementById('sidebar-menu');
-sidebarMenu.innerHTML = menuItems.map(item => `
-    <li onclick="${item.action.name}()">
-        <img src="${item.icon}" alt="${item.name}">
-        ${item.name}
-    </li>
-`).join('');
+if (sidebarMenu) {
+    sidebarMenu.innerHTML = menuItems.map(item => `
+        <li onclick="${item.action.name}()">
+            <img src="${item.icon}" alt="${item.name}">
+            ${item.name}
+        </li>
+    `).join('');
+}
 
-document.querySelector('.close-btn').addEventListener('click', () => {
-    sidebar.classList.remove('active');
-});
+const closeBtn = document.querySelector('.close-btn');
+if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+        if (sidebar) {
+            sidebar.classList.remove('active');
+        }
+    });
+}
 
 // Функции меню
 function showProfile() {
@@ -190,24 +198,27 @@ function showTransactionHistory() {
 
 function showSettings() {
     const gameTiles = document.getElementById('game-tiles');
-    gameTiles.innerHTML = `
-        <div class="game-screen">
-            <h2>Настройки</h2>
-            <label>
-                Звук: 
-                <input type="checkbox" id="sound-toggle" ${settings.soundEnabled ? 'checked' : ''}>
-            </label>
-            <label>
-                Тема: 
-                <select id="theme-select">
-                    <option value="light" ${settings.theme === 'light' ? 'selected' : ''}>Светлая</option>
-                    <option value="dark" ${settings.theme === 'dark' ? 'selected' : ''}>Темная</option>
-                </select>
-            </label>
-            <button onclick="saveSettings()">Сохранить</button>
-            <button class="back-btn" onclick="renderMainScreen()">Назад</button>
-        </div>
-    `;
+    if (gameTiles) {
+        gameTiles.innerHTML = `
+            <div class="game-screen">
+                <h2>Настройки</h2>
+                <div class="game-content">
+                    <label>
+                        Звук: 
+                        <input type="checkbox" id="sound-toggle" ${settings.soundEnabled ? 'checked' : ''}>
+                    </label>
+                    <label>
+                        Тема: 
+                        <select id="theme-select">
+                            <option value="dark" selected>Темная</option>
+                        </select>
+                    </label>
+                    <button onclick="saveSettings()">Сохранить</button>
+                    <button class="back-btn" onclick="renderMainScreen()">Назад</button>
+                </div>
+            </div>
+        `;
+    }
     sidebar.classList.remove('active');
 }
 
@@ -215,28 +226,25 @@ function saveSettings() {
     settings.soundEnabled = document.getElementById('sound-toggle').checked;
     settings.theme = document.getElementById('theme-select').value;
     Storage.save('settings', settings);
-    applyTheme();
     showModal('Настройки сохранены!');
 }
 
-function applyTheme() {
-    document.body.className = settings.theme;
-    if (settings.theme === 'dark') {
-        document.body.style.background = '#1A1A1A';
-        document.querySelector('.container').style.background = 'linear-gradient(180deg, #1A1A1A, #2A2A2A)';
-    } else {
-        document.body.style.background = '#F5F7FA';
-        document.querySelector('.container').style.background = 'linear-gradient(180deg, #F5F7FA, #E8ECEF)';
-    }
-}
-applyTheme();
-
 // Модальное окно
 function showModal(text) {
-    document.getElementById('modal-text').textContent = text;
-    document.getElementById('modal').style.display = 'flex';
+    const modal = document.getElementById('modal');
+    const modalText = document.getElementById('modal-text');
+    if (modal && modalText) {
+        modalText.textContent = text;
+        modal.style.display = 'flex';
+    }
 }
 
-document.querySelector('.modal-close-btn').addEventListener('click', () => {
-    document.getElementById('modal').style.display = 'none';
-});
+const modalCloseBtn = document.querySelector('.modal-close-btn');
+if (modalCloseBtn) {
+    modalCloseBtn.addEventListener('click', () => {
+        const modal = document.getElementById('modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
