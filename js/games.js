@@ -1,46 +1,41 @@
-class GameManager {
-    static start(gameId) {
-        document.getElementById('sidebar').classList.remove('active');
+// Модуль для игры в слоты
+const Slots = {
+    init() {
+        // Инициализация слотов
+        console.log("Slots initialized");
+    },
+    
+    start(bet) {
+        // Заглушка для начала игры
+        console.log(`Starting slots with bet: ${bet}`);
         
-        switch(gameId) {
-            case 'slots':
-                this.startSlots();
-                break;
-            case 'roulette':
-                this.startRoulette();
-                break;
-            case 'blackjack':
-                this.startBlackjack();
-                break;
-            case 'wheel':
-                this.startWheel();
-                break;
-        }
+        // Симуляция результата игры (в реальном приложении будет логика)
+        setTimeout(() => {
+            const isWin = Math.random() > 0.5;
+            const winAmount = isWin ? bet * 2 : 0;
+            
+            if (isWin) {
+                App.userBalance += winAmount;
+                App.updateBalance();
+                App.addToHistory('slots', winAmount, true);
+                App.showNotification(`Поздравляем! Вы выиграли ${winAmount}₽`);
+            } else {
+                App.addToHistory('slots', bet, false);
+                App.showNotification("Повезёт в следующий раз!", 2000);
+            }
+        }, 2000);
     }
+};
 
-    static startSlots() {
-        if (user.balance < 50) return App.showModal('Ошибка', 'Недостаточно средств!');
-        user.balance -= 50;
-        
-        const results = [
-            Math.floor(Math.random() * 5),
-            Math.floor(Math.random() * 5),
-            Math.floor(Math.random() * 5)
-        ];
-
-        const win = results[0] === results[1] && results[1] === results[2];
-        if (win) {
-            user.balance += 200;
-            App.showModal('Победа!', 'Вы выиграли 200 Stars!');
-        } else {
-            App.showModal('Повезет в следующий раз!', 'Попробуйте еще раз');
-        }
-        
-        App.updateBalance();
-        this.playSound(win ? 'win.mp3' : 'lose.mp3');
+// Модуль для колеса фортуны
+const Wheel = {
+    init() {
+        // Инициализация колеса
+        console.log("Wheel initialized");
+    },
+    
+    start(bet) {
+        // Заглушка для начала игры
+        console.log(`Starting wheel with bet: ${bet}`);
     }
-
-    static playSound(file) {
-        new Audio(`assets/sounds/${file}`).play().catch(() => {});
-    }
-}
+};
