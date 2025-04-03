@@ -28,37 +28,45 @@ class GameManager {
             gameTiles.innerHTML = `
                 <div class="game-screen">
                     <h2>Слоты</h2>
-                    <p id="slot-result">Нажми "Спин"!</p>
-                    <button onclick="GameManager.spinSlots()">Спин (⭐ 10)</button>
-                    <button class="back-btn" onclick="renderMainScreen()">Назад</button>
+                    <div class="game-content">
+                        <p id="slot-result">Нажми "Спин"!</p>
+                        <button onclick="GameManager.spinSlots()">Спин (⭐ 10)</button>
+                        <button class="back-btn" onclick="renderMainScreen()">Назад</button>
+                    </div>
                 </div>
             `;
         } else if (gameId === 'roulette') {
             gameTiles.innerHTML = `
                 <div class="game-screen">
                     <h2>Рулетка</h2>
-                    <p id="roulette-result">Сделай ставку!</p>
-                    <input type="number" id="roulette-bet" placeholder="Ставка (мин. 10)" min="10">
-                    <button onclick="GameManager.spinRoulette()">Крутить</button>
-                    <button class="back-btn" onclick="renderMainScreen()">Назад</button>
+                    <div class="game-content">
+                        <p id="roulette-result">Сделай ставку!</p>
+                        <input type="number" id="roulette-bet" placeholder="Ставка (мин. 10)" min="10">
+                        <button onclick="GameManager.spinRoulette()">Крутить</button>
+                        <button class="back-btn" onclick="renderMainScreen()">Назад</button>
+                    </div>
                 </div>
             `;
         } else if (gameId === 'blackjack') {
             gameTiles.innerHTML = `
                 <div class="game-screen">
                     <h2>Блэкджек</h2>
-                    <p id="blackjack-result">Нажми "Играть"!</p>
-                    <button onclick="GameManager.playBlackjack()">Играть (⭐ 20)</button>
-                    <button class="back-btn" onclick="renderMainScreen()">Назад</button>
+                    <div class="game-content">
+                        <p id="blackjack-result">Нажми "Играть"!</p>
+                        <button onclick="GameManager.playBlackjack()">Играть (⭐ 20)</button>
+                        <button class="back-btn" onclick="renderMainScreen()">Назад</button>
+                    </div>
                 </div>
             `;
         } else if (gameId === 'wheel') {
             gameTiles.innerHTML = `
                 <div class="game-screen">
                     <h2>Колесо Фортуны</h2>
-                    <p id="wheel-result">Крути колесо!</p>
-                    <button onclick="GameManager.spinWheel()">Крутить (⭐ 5)</button>
-                    <button class="back-btn" onclick="renderMainScreen()">Назад</button>
+                    <div class="game-content">
+                        <p id="wheel-result">Крути колесо!</p>
+                        <button onclick="GameManager.spinWheel()">Крутить (⭐ 5)</button>
+                        <button class="back-btn" onclick="renderMainScreen()">Назад</button>
+                    </div>
                 </div>
             `;
         }
