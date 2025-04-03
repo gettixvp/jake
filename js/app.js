@@ -106,20 +106,28 @@ const App = {
     },
     
     placeBet(bet) {
-        if (this.userBalance >= bet) {
-            this.userBalance -= bet;
-            this.updateBalance();
-            this.hideModal();
-            this.showNotification(`Ставка ${bet}₽ принята!`);
-            
-            // Здесь будет запуск игры с выбранной ставкой
-            if (this.currentGame === 'slots') {
-                Slots.start(bet);
-            }
-        } else {
-            this.showNotification("Недостаточно средств!", 2000);
+    if (this.userBalance >= bet) {
+        // Вибрация при ставке
+        if (navigator.vibrate) {
+            navigator.vibrate(50);
         }
-    },
+        
+        this.userBalance -= bet;
+        this.updateBalance();
+        this.hideModal();
+        this.showNotification(`Ставка ${bet}₽ принята!`);
+        
+        if (this.currentGame === 'slots') {
+            Slots.start(bet);
+        }
+    } else {
+        // Вибрация при ошибке
+        if (navigator.vibrate) {
+            navigator.vibrate(200);
+        }
+        this.showNotification("Недостаточно средств!", 2000);
+    }
+}
     
     updateUserData() {
         if (tgApp.initDataUnsafe && tgApp.initDataUnsafe.user) {
