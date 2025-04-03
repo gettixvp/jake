@@ -1,72 +1,102 @@
-<div class="casino-container">
-    <!-- Шапка -->
-    <header class="casino-header">
-        <div class="branding">
-            <img src="logo.png" class="logo" alt="Star Casino">
-            <div class="balance-display neon-text">
-                <span class="balance">10,000</span>
-                <img src="coin.png" class="coin-icon">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Casino</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="balance-container">
+                <span id="userBalance">1000</span> ₽
             </div>
-        </div>
+        </header>
         
-        <nav class="quick-menu">
-            <button class="menu-btn deposit-btn pulse">Пополнить</button>
-            <button class="menu-btn withdraw-btn">Вывести</button>
-            <button class="menu-btn profile-btn">
-                <img src="avatar.png" class="avatar">
+        <div class="notification" id="notification"></div>
+        
+        <main class="game-container" id="gameContainer">
+            <section id="homeSection" class="page-section active">
+                <div class="promo-banner">
+                    <img src="assets/images/wheel.png" alt="Promo">
+                    <div class="promo-text">Крути колесо - выигрывай до 10 000₽!</div>
+                </div>
+                
+                <div class="games-grid">
+                    <div class="game-card" data-game="slots">
+                        <img src="assets/images/slots.png" alt="Slots">
+                        <h3>Слоты</h3>
+                    </div>
+                    <div class="game-card" data-game="wheel">
+                        <img src="assets/images/wheel.png" alt="Wheel">
+                        <h3>Колесо</h3>
+                    </div>
+                </div>
+            </section>
+
+            <section id="gamesSection" class="page-section">
+                <div class="game-ui" id="slotsGame">
+                    <!-- Сюда будет загружаться интерфейс игры -->
+                </div>
+            </section>
+
+            <section id="profileSection" class="page-section">
+                <div class="profile-header">
+                    <img src="https://via.placeholder.com/80" alt="Avatar" class="profile-avatar" id="userAvatar">
+                    <h2 id="userName">Игрок</h2>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="action-btn" id="depositBtn">
+                        <img src="assets/images/deposit.png" alt="Deposit">
+                        <span>Пополнить</span>
+                    </button>
+                    <button class="action-btn" id="withdrawBtn">
+                        <img src="assets/images/withdraw.png" alt="Withdraw">
+                        <span>Вывести</span>
+                    </button>
+                </div>
+                
+                <div class="history-container">
+                    <h3>История игр</h3>
+                    <div class="history-list" id="historyList">
+                        <!-- История будет здесь -->
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <nav class="bottom-nav">
+            <button class="nav-btn active" data-section="home">
+                <img src="assets/images/home.png" alt="Home">
+            </button>
+            <button class="nav-btn" data-section="games">
+                <img src="assets/images/slots.png" alt="Games">
+            </button>
+            <button class="nav-btn" data-section="profile">
+                <img src="assets/images/profile.png" alt="Profile">
             </button>
         </nav>
-    </header>
+    </div>
 
-    <!-- Основной контент -->
-    <main class="main-content">
-        <section class="featured-game">
-            <div class="game-card mega-wheel">
-                <div class="game-label">НОВИНКА</div>
-                <h3>Mega Wheel</h3>
-                <button class="play-btn">Играть</button>
+    <!-- Модальные окна -->
+    <div class="modal" id="betModal">
+        <div class="modal-content">
+            <h3>Сделайте ставку</h3>
+            <div class="bet-options">
+                <button class="chip" data-bet="10">10</button>
+                <button class="chip" data-bet="50">50</button>
+                <button class="chip" data-bet="100">100</button>
+                <button class="chip" data-bet="500">500</button>
             </div>
-        </section>
+            <button class="close-modal">Закрыть</button>
+        </div>
+    </div>
 
-        <section class="games-grid">
-            <div class="game-card slot-machine">
-                <img src="slot-icon.png" class="game-icon">
-                <h4>Слоты</h4>
-                <div class="payout-rate">97.8% RTP</div>
-            </div>
-            
-            <div class="game-card blackjack">
-                <img src="blackjack-icon.png" class="game-icon">
-                <h4>Блэкджек</h4>
-                <div class="payout-rate">99.2% RTP</div>
-            </div>
-            
-            <!-- Другие игры -->
-        </section>
-    </main>
-
-    <!-- Нижняя панель -->
-    <footer class="bottom-nav">
-        <button class="nav-item active">
-            <img src="home-icon.png">
-            Главная
-        </button>
-        <button class="nav-item">
-            <img src="tournament-icon.png">
-            Турниры
-        </button>
-        <button class="nav-item">
-            <img src="friends-icon.png">
-            Друзья
-        </button>
-        <button class="nav-item">
-            <img src="shop-icon.png">
-            Магазин
-        </button>
-    </footer>
-
-    <!-- Боковое меню -->
-    <aside class="side-menu">
-        <!-- ... -->
-    </aside>
-</div>
+    <script src="js/storage.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/games.js"></script>
+</body>
+</html>
