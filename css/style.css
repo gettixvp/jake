@@ -1,99 +1,182 @@
-/* Новая цветовая схема */
 :root {
-    --main-bg: #0a0817;
-    --neon-blue: #00f3ff;
-    --neon-pink: #ff00ff;
-    --accent-purple: #7028e4;
+    --bg-color: #0f0c24;
+    --primary-color: #7028e4;
+    --accent-color: #00f3ff;
+    --text-color: #ffffff;
     --glass-bg: rgba(255, 255, 255, 0.05);
+    --neon-shadow: 0 0 15px var(--accent-color);
 }
 
-/* Фоновые частицы */
-.particles {
-    position: fixed;
-    width: 100%;
-    height: 100%;
-    z-index: -1;
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-/* Анимация свечения */
-@keyframes glow {
-    0% { filter: drop-shadow(0 0 5px var(--neon-blue)); }
-    50% { filter: drop-shadow(0 0 20px var(--neon-pink)); }
-    100% { filter: drop-shadow(0 0 5px var(--neon-blue)); }
-}
-
-/* Стиль стекломорфизма */
-.glassmorphism {
-    background: var(--glass-bg);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Плитки игр с 3D эффектом */
-.game-tile {
-    transform-style: preserve-3d;
-    perspective: 1000px;
-    transition: all 0.3s ease;
-}
-
-.game-tile:hover {
-    transform: rotateY(10deg) scale(1.05);
-    box-shadow: 0 0 30px var(--accent-purple);
-}
-
-/* Неоновые кнопки */
-.neon-btn {
-    position: relative;
+body {
+    font-family: 'Orbitron', sans-serif;
+    background: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
     overflow: hidden;
-    background: linear-gradient(45deg, var(--neon-blue), var(--neon-pink));
-    clip-path: polygon(10% 0, 90% 0, 100% 50%, 90% 100%, 10% 100%, 0 50%);
-    transition: 0.3s all ease;
 }
 
-.neon-btn::after {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.2));
-    transform: rotate(45deg);
+.container {
+    padding: 15px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
-/* Анимация загрузки игр */
-@keyframes gameLoad {
-    0% { opacity: 0; transform: translateY(20px); }
-    100% { opacity: 1; transform: translateY(0); }
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: var(--glass-bg);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--primary-color);
 }
 
-/* Адаптивная сетка игр */
-.game-grid {
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-img {
+    width: 40px;
+    height: 40px;
+    filter: drop-shadow(var(--neon-shadow));
+}
+
+.balance-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: linear-gradient(45deg, #1a0b2e, #2d1a47);
+    border-radius: 8px;
+    border: 1px solid var(--accent-color);
+    animation: glow 2s infinite alternate;
+}
+
+@keyframes glow {
+    0% { box-shadow: 0 0 10px var(--primary-color); }
+    100% { box-shadow: 0 0 20px var(--accent-color); }
+}
+
+.coin-icon {
+    width: 24px;
+    height: 24px;
+}
+
+/* Games Grid */
+.games-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 20px;
-    padding: 20px;
+    gap: 15px;
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
 }
 
-/* Стили для модального окна */
-.modal-overlay {
-    background: rgba(0, 0, 0, 0.9);
+.game-card {
+    background: var(--glass-bg);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.3s, box-shadow 0.3s;
+    border: 1px solid transparent;
     backdrop-filter: blur(5px);
 }
 
+.game-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--neon-shadow);
+    border-color: var(--accent-color);
+}
+
+.game-icon {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 10px;
+    filter: drop-shadow(var(--neon-shadow));
+}
+
+/* Sidebar */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: -100%;
+    width: 80%;
+    height: 100%;
+    background: var(--bg-color);
+    padding: 20px;
+    transition: left 0.3s;
+    z-index: 1000;
+    border-right: 2px solid var(--primary-color);
+}
+
+.sidebar.active {
+    left: 0;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 8px;
+    color: var(--text-color);
+    text-decoration: none;
+    transition: background 0.3s;
+}
+
+.nav-item:hover {
+    background: var(--glass-bg);
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+}
+
 .modal-content {
-    background: var(--main-bg);
-    border: 2px solid var(--neon-blue);
-    box-shadow: 0 0 40px rgba(0, 243, 255, 0.3);
+    background: var(--bg-color);
+    padding: 25px;
+    border-radius: 15px;
+    text-align: center;
+    border: 2px solid var(--accent-color);
+    box-shadow: var(--neon-shadow);
+    max-width: 90%;
 }
 
-/* Анимация колеса фортуны */
-.wheel-container {
-    animation: wheelSpin 3s cubic-bezier(0.25, 0.1, 0.25, 1);
+.modal-close {
+    background: var(--primary-color);
+    border: none;
+    padding: 10px 25px;
+    border-radius: 6px;
+    color: white;
+    margin-top: 15px;
+    cursor: pointer;
+    transition: transform 0.3s;
 }
 
-@keyframes wheelSpin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(1440deg); }
+.modal-close:hover {
+    transform: scale(1.05);
 }
