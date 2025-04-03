@@ -3,7 +3,7 @@ class GameManager {
     static playSound(soundFile) {
         if (settings.soundEnabled) {
             const audio = new Audio(`assets/sounds/${soundFile}`);
-            audio.play().catch(() => {});
+            audio.play().catch(() => console.error('Error playing sound:', soundFile));
         }
     }
 
@@ -24,6 +24,10 @@ class GameManager {
 
     static startGame(gameId) {
         const gameTiles = document.getElementById('game-tiles');
+        if (!gameTiles) {
+            console.error('Game tiles container not found!');
+            return;
+        }
         if (gameId === 'slots') {
             gameTiles.innerHTML = `
                 <div class="game-screen">
@@ -89,13 +93,21 @@ class GameManager {
         } else {
             this.playSound('lose.mp3');
         }
-        document.getElementById('slot-result').textContent = result;
+        const slotResult = document.getElementById('slot-result');
+        if (slotResult) {
+            slotResult.textContent = result;
+        }
         updateBalance();
         Storage.save('user', user);
     }
 
     static spinRoulette() {
-        const bet = parseInt(document.getElementById('roulette-bet').value);
+        const betInput = document.getElementById('roulette-bet');
+        if (!betInput) {
+            console.error('Roulette bet input not found!');
+            return;
+        }
+        const bet = parseInt(betInput.value);
         if (!bet || bet < 10 || bet > user.balance) {
             showModal('Некорректная ставка! Минимум 10 Stars, не больше баланса.');
             return;
@@ -113,7 +125,10 @@ class GameManager {
         } else {
             this.playSound('lose.mp3');
         }
-        document.getElementById('roulette-result').textContent = result;
+        const rouletteResult = document.getElementById('roulette-result');
+        if (rouletteResult) {
+            rouletteResult.textContent = result;
+        }
         updateBalance();
         Storage.save('user', user);
     }
@@ -142,7 +157,10 @@ class GameManager {
             result = `Проигрыш! (Ваш счет: ${playerScore}, Дилер: ${dealerScore})`;
             this.playSound('lose.mp3');
         }
-        document.getElementById('blackjack-result').textContent = result;
+        const blackjackResult = document.getElementById('blackjack-result');
+        if (blackjackResult) {
+            blackjackResult.textContent = result;
+        }
         updateBalance();
         Storage.save('user', user);
     }
@@ -166,7 +184,10 @@ class GameManager {
         } else {
             this.playSound('lose.mp3');
         }
-        document.getElementById('wheel-result').textContent = result;
+        const wheelResult = document.getElementById('wheel-result');
+        if (wheelResult) {
+            wheelResult.textContent = result;
+        }
         updateBalance();
         Storage.save('user', user);
     }
