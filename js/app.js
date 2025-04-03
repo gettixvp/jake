@@ -16,6 +16,49 @@ let settings = Storage.load('settings', {
     theme: 'light'
 });
 
+// Полноэкранный режим
+function enableFullscreen() {
+    if (!tg.isFullscreen) {
+        tg.requestFullscreen();
+    }
+}
+enableFullscreen();
+
+// Обработка событий полноэкранного режима
+tg.onEvent('fullscreenChanged', () => {
+    console.log('Fullscreen mode changed:', tg.isFullscreen);
+});
+
+tg.onEvent('fullscreenFailed', () => {
+    showModal('Не удалось включить полноэкранный режим.');
+});
+
+// Запрет поворота через акселерометр (фиксируем горизонтальную ориентацию)
+tg.setDeviceOrientation('landscape');
+
+// Обработка событий активности
+tg.onEvent('activated', () => {
+    console.log('Mini App activated');
+});
+
+tg.onEvent('deactivated', () => {
+    console.log('Mini App deactivated');
+});
+
+// Обработка безопасных зон
+function updateSafeArea() {
+    const safeArea = tg.safeAreaInset;
+    const contentSafeArea = tg.contentSafeAreaInset;
+    document.documentElement.style.setProperty('--safe-area-inset-top', `${safeArea.top}px`);
+    document.documentElement.style.setProperty('--safe-area-inset-bottom', `${safeArea.bottom}px`);
+    document.documentElement.style.setProperty('--safe-area-inset-left', `${safeArea.left}px`);
+    document.documentElement.style.setProperty('--safe-area-inset-right', `${safeArea.right}px`);
+}
+updateSafeArea();
+
+tg.onEvent('safeAreaChanged', updateSafeArea);
+tg.onEvent('contentSafeAreaChanged', updateSafeArea);
+
 // Авторизация через Telegram
 async function authenticate() {
     const initData = tg.initData;
@@ -65,16 +108,22 @@ function renderMainScreen() {
         const tile = document.createElement('div');
         tile.classList.add('tile');
         tile.innerHTML = `
-            <img src="${game.icon}" alt="${game.name}">
+            <img src="${game.icon}" alt="${game.name}" onclick="GameManager.startGame('${game.id}')">
             <h3>${game.name}</h3>
-            <button onclick="GameManager.startGame('${game.id}')">Играть</button>
         `;
         gameTiles.appendChild(tile);
     });
 }
 renderMainScreen();
 
-// Боковое меню
+// Боковое меню через три точки
+const sidebar = document.getElementById('sidebar');
+tg.MainButton.setText('Меню');
+tg.MainButton.show();
+tg.MainButton.onClick(() => {
+    sidebar.classList.add('active');
+});
+
 const menuItems = [
     { name: 'Главный экран', action: renderMainScreen, icon: 'assets/images/home.png' },
     { name: 'Профиль', action: showProfile, icon: 'assets/images/profile.png' },
@@ -92,11 +141,9 @@ sidebarMenu.innerHTML = menuItems.map(item => `
     </li>
 `).join('');
 
-const menuBtn = document.querySelector('.menu-btn');
-const closeBtn = document.querySelector('.close-btn');
-const sidebar = document.getElementById('sidebar');
-menuBtn.addEventListener('click', () => sidebar.classList.add('active'));
-closeBtn.addEventListener('click', () => sidebar.classList.remove('active'));
+document.querySelector('.close-btn').addEventListener('click', () => {
+    sidebar.classList.remove('active');
+});
 
 // Функции меню
 function showProfile() {
