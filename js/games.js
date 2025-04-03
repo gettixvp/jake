@@ -11,30 +11,35 @@ const Slots = {
     },
     
     createReels() {
-        const slotsArea = document.getElementById('slotsArea');
-        slotsArea.innerHTML = '';
+        this.reels = [];
+        const reelsContainer = document.getElementById('slotsReels');
+        reelsContainer.innerHTML = '';
         
-        // Создаем 3 барабана
         for (let i = 0; i < 3; i++) {
             const reel = document.createElement('div');
             reel.className = 'slots-reel';
-            reel.dataset.reelIndex = i;
+            reel.id = `reel${i+1}`;
             
-            // Создаем символы в каждом барабане (3 видимых + 2 скрытых для анимации)
+            // Создаем 5 символов в каждом барабане (3 видимых + 2 для анимации)
             for (let j = 0; j < 5; j++) {
                 const symbol = document.createElement('div');
                 symbol.className = 'slots-symbol';
-                symbol.textContent = this.symbols[Math.floor(Math.random() * this.symbols.length)];
+                symbol.textContent = this.getRandomSymbol();
+                symbol.style.transform = `translateY(${(j - 2) * 100}%)`;
                 reel.appendChild(symbol);
             }
             
-            slotsArea.appendChild(reel);
+            reelsContainer.appendChild(reel);
             this.reels.push(reel);
         }
     },
     
+    getRandomSymbol() {
+        return this.symbols[Math.floor(Math.random() * this.symbols.length)];
+    },
+    
     setupEventListeners() {
-        document.getElementById('playBtn').addEventListener('click', () => {
+        document.getElementById('spinBtn').addEventListener('click', () => {
             if (!this.isSpinning) {
                 App.showModal('bet');
             }
@@ -44,75 +49,80 @@ const Slots = {
     start(bet) {
         this.currentBet = bet;
         this.isSpinning = true;
-        document.getElementById('playBtn').disabled = true;
+        document.getElementById('spinBtn').disabled = true;
         
-        // Запускаем вибрацию
-        if (navigator.vibrate) {
-            navigator.vibrate([100, 50, 100]);
-        }
+        // Вибрация
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
         
-        // Запускаем анимацию каждого барабана
+        // Звук вращения
+        App.playSound('spin');
+        
+        // Анимация барабанов
         this.reels.forEach((reel, index) => {
             this.spinReel(reel, index);
         });
-        
-        // Проигрываем звук вращения (если есть)
-        const spinSound = document.getElementById('spinSound');
-        if (spinSound) {
-            spinSound.currentTime = 0;
-            spinSound.play();
-        }
     },
     
     spinReel(reel, index) {
         const symbols = reel.querySelectorAll('.slots-symbol');
-        const spinDuration = 2000 + index * 500; // Каждый следующий барабан останавливается позже
+        const spinDuration = 2000 + index * 500;
+        const startTime = performance.now();
         
-        // Анимация вращения
-        let startTime = null;
-        const spin = (timestamp) => {
-            if (!startTime) startTime = timestamp;
-            const progress = timestamp - startTime;
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / spinDuration, 1);
             
-            // Сдвигаем символы вниз
-            symbols.forEach(symbol => {
-                const yPos = (progress / 50) % 100;
-                symbol.style.transform = `translateY(-${yPos}%)`;
+            // Плавное замедление
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            
+            symbols.forEach((symbol, i) => {
+                const yPos = (i - 2 + easeOut * 10) * 100;
+                symbol.style.transform = `translateY(${yPos}%)`;
+                
+                // Обновляем символы при прокрутке
+                if (yPos > (i + 1) * 100) {
+                    symbol.textContent = this.getRandomSymbol();
+                }
             });
             
-            if (progress < spinDuration) {
-                requestAnimationFrame(spin);
+            if (progress < 1) {
+                requestAnimationFrame(animate);
             } else {
                 this.stopReel(reel, index);
             }
         };
         
-        requestAnimationFrame(spin);
+        requestAnimationFrame(animate);
     },
     
     stopReel(reel, index) {
-        const symbols = Array.from(reel.querySelectorAll('.slots-symbol'));
+        const symbols = reel.querySelectorAll('.slots-symbol');
+        const resultSymbol = this.getRandomSymbol();
         
-        // Генерируем случайный символ для остановки
-        const randomSymbol = this.symbols[Math.floor(Math.random() * this.symbols.length)];
-        
-        // Устанавливаем центральный символ
-        symbols[2].textContent = randomSymbol;
-        symbols[1].textContent = this.symbols[(this.symbols.indexOf(randomSymbol) - 1 >= 0 ? 
-            this.symbols.indexOf(randomSymbol) - 1 : this.symbols.length - 1];
-        symbols[3].textContent = this.symbols[(this.symbols.indexOf(randomSymbol) + 1) % this.symbols.length];
+        // Устанавливаем центральные символы
+        symbols[2].textContent = resultSymbol;
+        symbols[1].textContent = this.getPrevSymbol(resultSymbol);
+        symbols[3].textContent = this.getNextSymbol(resultSymbol);
         
         // Сбрасываем позиции
         symbols.forEach((symbol, i) => {
-            symbol.style.transform = `translateY(${(i - 2) * 100 - 50}%)`;
+            symbol.style.transform = `translateY(${(i - 2) * 100}%)`;
         });
         
-        // Проверяем, все ли барабаны остановились
+        // Проверяем результаты после остановки последнего барабана
         if (index === this.reels.length - 1) {
-            setTimeout(() => {
-                this.checkResult();
-            }, 500);
+            setTimeout(() => this.checkResult(), 500);
         }
+    },
+    
+    getPrevSymbol(symbol) {
+        const index = this.symbols.indexOf(symbol);
+        return this.symbols[index > 0 ? index - 1 : this.symbols.length - 1];
+    },
+    
+    getNextSymbol(symbol) {
+        const index = this.symbols.indexOf(symbol);
+        return this.symbols[(index + 1) % this.symbols.length];
     },
     
     checkResult() {
@@ -122,7 +132,7 @@ const Slots = {
             results.push(symbols[2].textContent);
         });
         
-        // Простая логика выигрыша: 3 одинаковых символа
+        // Проверка выигрышной комбинации
         if (results[0] === results[1] && results[1] === results[2]) {
             const winMultiplier = this.getWinMultiplier(results[0]);
             const winAmount = this.currentBet * winMultiplier;
@@ -131,42 +141,26 @@ const Slots = {
             App.updateBalance();
             App.addToHistory('slots', winAmount, true);
             
-            // Вибрация выигрыша
-            if (navigator.vibrate) {
-                navigator.vibrate([200, 100, 200, 100, 200]);
-            }
-            
             // Анимация выигрыша
             this.animateWin();
             
-            // Проигрываем звук выигрыша
-            const winSound = document.getElementById('winSound');
-            if (winSound) {
-                winSound.currentTime = 0;
-                winSound.play();
-            }
+            // Вибрация и звук
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+            App.playSound('win');
             
-            App.showNotification(`🎉 Вы выиграли ${winAmount}₽!`);
+            App.showNotification(`🎉 Вы выиграли ${winAmount.toLocaleString()}₽!`);
         } else {
             App.addToHistory('slots', this.currentBet, false);
             
-            // Вибрация проигрыша
-            if (navigator.vibrate) {
-                navigator.vibrate([300]);
-            }
-            
-            // Проигрываем звук проигрыша
-            const loseSound = document.getElementById('loseSound');
-            if (loseSound) {
-                loseSound.currentTime = 0;
-                loseSound.play();
-            }
+            // Вибрация и звук проигрыша
+            if (navigator.vibrate) navigator.vibrate(300);
+            App.playSound('lose');
             
             App.showNotification("Повезёт в следующий раз!", 2000);
         }
         
         this.isSpinning = false;
-        document.getElementById('playBtn').disabled = false;
+        document.getElementById('spinBtn').disabled = false;
     },
     
     getWinMultiplier(symbol) {
@@ -189,7 +183,7 @@ const Slots = {
             reel.classList.add('win-animation');
             setTimeout(() => {
                 reel.classList.remove('win-animation');
-            }, 1000);
+            }, 1500);
         });
     }
 };
