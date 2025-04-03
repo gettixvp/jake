@@ -3,110 +3,593 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Casino | Игровые автоматы</title>
-    <link rel="stylesheet" href="css/styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Luxury Casino | Telegram Mini App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            overflow-x: hidden;
+        }
+        
+        .glow-text {
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.7);
+        }
+        
+        .chip-glow {
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+        }
+        
+        .slot-machine {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid #334155;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+        
+        .slot-reel {
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid #334155;
+        }
+        
+        .win-animation {
+            animation: pulse 0.5s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.05); }
+        }
+        
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+        }
+        
+        .game-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3);
+        }
+        
+        .nav-btn.active {
+            border-top: 3px solid #f59e0b;
+        }
+        
+        .balance-container {
+            background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid #334155;
+        }
+    </style>
 </head>
-<body>
-    <div class="app-container">
-        <header class="app-header">
-            <div class="balance-container">
-                <span id="userBalance">5 000</span> ₽
+<body class="min-h-screen flex flex-col">
+    <div class="app-container flex flex-col flex-grow">
+        <!-- Header -->
+        <header class="px-4 py-3 flex justify-between items-center bg-gradient-to-r from-blue-900 to-purple-900 border-b border-gray-700">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-full bg-yellow-500 flex items-center justify-center mr-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V3m0 5l-4-4m4 4l4-4m-8 11l4 4m0 0l4-4m-4 4V8" />
+                    </svg>
+                </div>
+                <h1 class="text-xl font-bold glow-text">Luxury Casino</h1>
+            </div>
+            
+            <div class="balance-container px-4 py-2 rounded-full flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-400 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd" />
+                </svg>
+                <span id="userBalance" class="font-bold text-lg">5,000</span>
+                <span class="ml-1">₽</span>
             </div>
         </header>
         
-        <div class="notification" id="notification"></div>
+        <!-- Notification -->
+        <div id="notification" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg bg-green-500 text-white font-medium animate__animated animate__fadeInDown"></div>
         
-        <main class="game-container" id="gameContainer">
-            <section id="homeSection" class="page-section active">
-                <div class="promo-banner">
-                    <img src="assets/images/promo-bg.jpg" alt="Акция">
-                    <div class="promo-text">Крути колесо - выигрывай до 50 000₽!</div>
+        <!-- Main Content -->
+        <main class="flex-grow p-4 overflow-y-auto">
+            <!-- Home Section -->
+            <section id="homeSection" class="page-section">
+                <!-- Promo Banner -->
+                <div class="relative rounded-xl overflow-hidden mb-6 h-40">
+                    <div class="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600 opacity-90"></div>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                        <h2 class="text-2xl font-bold mb-2">Крути колесо</h2>
+                        <p class="text-lg mb-3">Выиграй до <span class="font-bold text-yellow-300">50,000₽</span></p>
+                        <button class="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 rounded-full font-bold text-black transition-all transform hover:scale-105">
+                            Играть сейчас
+                        </button>
+                    </div>
+                    <div class="absolute bottom-2 right-2 bg-black bg-opacity-50 px-2 py-1 rounded text-xs">
+                        Новое!
+                    </div>
                 </div>
                 
-                <div class="games-grid">
-                    <div class="game-card" data-game="slots">
-                        <img src="assets/images/slots-icon.png" alt="Слоты">
-                        <h3>Игровые автоматы</h3>
+                <!-- Games Grid -->
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="game-card bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 text-center border border-gray-700 transition-all duration-300 cursor-pointer">
+                        <div class="w-16 h-16 mx-auto mb-3 bg-blue-900 rounded-full flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold">Игровые автоматы</h3>
+                        <p class="text-xs text-gray-400 mt-1">Классические слоты</p>
                     </div>
-                    <div class="game-card" data-game="wheel">
-                        <img src="assets/images/wheel-icon.png" alt="Колесо">
-                        <h3>Колесо фортуны</h3>
+                    
+                    <div class="game-card bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 text-center border border-gray-700 transition-all duration-300 cursor-pointer">
+                        <div class="w-16 h-16 mx-auto mb-3 bg-purple-900 rounded-full flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1m-2 1l2-1m-2 1v2.5M20 10l-2 1m2-1l-2-1m2 1v2.5M14 16l-2 1m-2-1l2-1m-2 1v2.5M20 16l-2 1m2-1l-2-1m2 1v2.5" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold">Колесо фортуны</h3>
+                        <p class="text-xs text-gray-400 mt-1">Испытай удачу</p>
+                    </div>
+                    
+                    <div class="game-card bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 text-center border border-gray-700 transition-all duration-300 cursor-pointer">
+                        <div class="w-16 h-16 mx-auto mb-3 bg-red-900 rounded-full flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold">Блэкджек</h3>
+                        <p class="text-xs text-gray-400 mt-1">21 очко</p>
+                    </div>
+                    
+                    <div class="game-card bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 text-center border border-gray-700 transition-all duration-300 cursor-pointer">
+                        <div class="w-16 h-16 mx-auto mb-3 bg-green-900 rounded-full flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold">Покер</h3>
+                        <p class="text-xs text-gray-400 mt-1">Техасский холдем</p>
+                    </div>
+                </div>
+                
+                <!-- Jackpot Banner -->
+                <div class="bg-gradient-to-r from-yellow-600 to-yellow-800 rounded-xl p-3 mb-6 flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-black">Джекпот</h3>
+                        <p class="text-xl font-bold text-black">1,245,780 ₽</p>
+                    </div>
+                    <div class="w-12 h-12 bg-black bg-opacity-30 rounded-full flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-yellow-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Recent Winners -->
+                <div class="bg-gray-800 bg-opacity-50 rounded-xl p-4">
+                    <h3 class="font-bold mb-3 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-400 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        Последние победители
+                    </h3>
+                    
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between bg-gray-700 bg-opacity-50 px-3 py-2 rounded-lg">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold mr-2">ID</div>
+                                <span class="font-medium">Игрок_1542</span>
+                            </div>
+                            <span class="text-yellow-400 font-bold">25,000 ₽</span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between bg-gray-700 bg-opacity-50 px-3 py-2 rounded-lg">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-xs font-bold mr-2">ID</div>
+                                <span class="font-medium">Игрок_8765</span>
+                            </div>
+                            <span class="text-yellow-400 font-bold">12,500 ₽</span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between bg-gray-700 bg-opacity-50 px-3 py-2 rounded-lg">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-xs font-bold mr-2">ID</div>
+                                <span class="font-medium">Игрок_3214</span>
+                            </div>
+                            <span class="text-yellow-400 font-bold">8,200 ₽</span>
+                        </div>
                     </div>
                 </div>
             </section>
-
-            <section id="gamesSection" class="page-section">
-                <div class="game-ui" id="slotsGame"></div>
+            
+            <!-- Slots Game Section -->
+            <section id="slotsSection" class="page-section hidden">
+                <div class="slot-machine rounded-xl p-4 mb-6">
+                    <div class="flex justify-between mb-4">
+                        <div class="text-sm bg-gray-800 px-3 py-1 rounded-full">Баланс: <span id="slotsBalance" class="font-bold">5,000</span> ₽</div>
+                        <div class="text-sm bg-gray-800 px-3 py-1 rounded-full">Ставка: <span id="currentBet" class="font-bold">100</span> ₽</div>
+                    </div>
+                    
+                    <div class="flex justify-center mb-6">
+                        <div class="slot-reel w-20 h-24 mx-1 rounded-lg flex items-center justify-center text-4xl font-bold" id="reel1">7</div>
+                        <div class="slot-reel w-20 h-24 mx-1 rounded-lg flex items-center justify-center text-4xl font-bold" id="reel2">7</div>
+                        <div class="slot-reel w-20 h-24 mx-1 rounded-lg flex items-center justify-center text-4xl font-bold" id="reel3">7</div>
+                    </div>
+                    
+                    <div class="flex justify-center space-x-4 mb-4">
+                        <button class="chip-glow w-12 h-12 rounded-full bg-red-600 flex items-center justify-center font-bold text-white" data-bet="10">10</button>
+                        <button class="chip-glow w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white" data-bet="50">50</button>
+                        <button class="chip-glow w-12 h-12 rounded-full bg-green-600 flex items-center justify-center font-bold text-white" data-bet="100">100</button>
+                        <button class="chip-glow w-12 h-12 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white" data-bet="500">500</button>
+                        <button class="chip-glow w-12 h-12 rounded-full bg-yellow-600 flex items-center justify-center font-bold text-white" data-bet="1000">1K</button>
+                    </div>
+                    
+                    <button id="spinButton" class="w-full py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-full font-bold text-black flex items-center justify-center transition-all transform hover:scale-105">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 animate-spin hidden" id="spinIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Крутить
+                    </button>
+                </div>
+                
+                <div class="bg-gray-800 bg-opacity-50 rounded-xl p-4">
+                    <h3 class="font-bold mb-3">Выигрышные комбинации</h3>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-gray-700 p-2 rounded-lg">
+                            <div class="flex justify-center mb-1">
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">7</div>
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">7</div>
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">7</div>
+                            </div>
+                            <p class="text-xs text-center text-yellow-400">x10 ставки</p>
+                        </div>
+                        
+                        <div class="bg-gray-700 p-2 rounded-lg">
+                            <div class="flex justify-center mb-1">
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">🍒</div>
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">🍒</div>
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">🍒</div>
+                            </div>
+                            <p class="text-xs text-center text-yellow-400">x5 ставки</p>
+                        </div>
+                        
+                        <div class="bg-gray-700 p-2 rounded-lg">
+                            <div class="flex justify-center mb-1">
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">🍋</div>
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">🍋</div>
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">🍋</div>
+                            </div>
+                            <p class="text-xs text-center text-yellow-400">x3 ставки</p>
+                        </div>
+                        
+                        <div class="bg-gray-700 p-2 rounded-lg">
+                            <div class="flex justify-center mb-1">
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">🍊</div>
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">🍊</div>
+                                <div class="slot-reel-small w-10 h-12 mx-1 rounded flex items-center justify-center text-xl font-bold">🍊</div>
+                            </div>
+                            <p class="text-xs text-center text-yellow-400">x2 ставки</p>
+                        </div>
+                    </div>
+                </div>
             </section>
-
-            <section id="profileSection" class="page-section">
-                <div class="profile-header">
-                    <img src="assets/images/default-avatar.png" alt="Аватар" class="profile-avatar" id="userAvatar">
-                    <h2 id="userName">Игрок</h2>
-                    <p class="user-id">ID: <span id="userId">123456</span></p>
+            
+            <!-- Profile Section -->
+            <section id="profileSection" class="page-section hidden">
+                <div class="flex flex-col items-center mb-6">
+                    <div class="w-24 h-24 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 mb-3 flex items-center justify-center relative">
+                        <span class="text-3xl font-bold">U</span>
+                        <div class="absolute bottom-0 right-0 w-6 h-6 bg-green-500 rounded-full border-2 border-gray-900"></div>
+                    </div>
+                    <h2 class="text-xl font-bold" id="userName">Игрок</h2>
+                    <p class="text-gray-400 text-sm">ID: <span id="userId">123456</span></p>
                 </div>
                 
-                <div class="action-buttons">
-                    <button class="action-btn" id="depositBtn">
-                        <img src="assets/images/deposit-icon.png" alt="Пополнить">
-                        <span>Пополнить</span>
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <button class="bg-gradient-to-r from-blue-600 to-blue-800 p-3 rounded-xl flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="font-medium text-sm">Пополнить</span>
                     </button>
-                    <button class="action-btn" id="withdrawBtn">
-                        <img src="assets/images/withdraw-icon.png" alt="Вывести">
-                        <span>Вывести</span>
+                    
+                    <button class="bg-gradient-to-r from-green-600 to-green-800 p-3 rounded-xl flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <span class="font-medium text-sm">Вывести</span>
+                    </button>
+                    
+                    <button class="bg-gradient-to-r from-purple-600 to-purple-800 p-3 rounded-xl flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="font-medium text-sm">История</span>
+                    </button>
+                    
+                    <button class="bg-gradient-to-r from-red-600 to-red-800 p-3 rounded-xl flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span class="font-medium text-sm">Настройки</span>
                     </button>
                 </div>
                 
-                <div class="history-container">
-                    <h3>История игр</h3>
-                    <div class="history-list" id="historyList">
-                        <!-- История будет загружена через JS -->
+                <div class="bg-gray-800 bg-opacity-50 rounded-xl p-4">
+                    <h3 class="font-bold mb-3 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-400 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        Ваши достижения
+                    </h3>
+                    
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="bg-gray-700 p-2 rounded-lg flex flex-col items-center">
+                            <div class="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center mb-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-black" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                            </div>
+                            <span class="text-xs text-center">Новичок</span>
+                        </div>
+                        
+                        <div class="bg-gray-700 p-2 rounded-lg flex flex-col items-center opacity-50">
+                            <div class="w-10 h-10 bg-gray-500 rounded-full flex items-center justify-center mb-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                                </svg>
+                            </div>
+                            <span class="text-xs text-center">Ночной игрок</span>
+                        </div>
+                        
+                        <div class="bg-gray-700 p-2 rounded-lg flex flex-col items-center opacity-50">
+                            <div class="w-10 h-10 bg-gray-500 rounded-full flex items-center justify-center mb-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <span class="text-xs text-center">Рисковый</span>
+                        </div>
                     </div>
                 </div>
             </section>
         </main>
         
-        <nav class="bottom-nav">
-            <button class="nav-btn active" data-section="home">
-                <img src="assets/images/home-icon.png" alt="Главная">
-                <span>Главная</span>
+        <!-- Bottom Navigation -->
+        <nav class="flex justify-around items-center bg-gray-900 border-t border-gray-800 py-2">
+            <button class="nav-btn flex flex-col items-center px-4 py-2 text-xs active" data-section="home">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                Главная
             </button>
-            <button class="nav-btn" data-section="games">
-                <img src="assets/images/games-icon.png" alt="Игры">
-                <span>Игры</span>
+            
+            <button class="nav-btn flex flex-col items-center px-4 py-2 text-xs" data-section="slots">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+                Слоты
             </button>
-            <button class="nav-btn" data-section="profile">
-                <img src="assets/images/profile-icon.png" alt="Профиль">
-                <span>Профиль</span>
+            
+            <button class="nav-btn flex flex-col items-center px-4 py-2 text-xs" data-section="profile">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Профиль
             </button>
         </nav>
     </div>
-
-    <!-- Модальные окна -->
-    <div class="modal" id="betModal">
-        <div class="modal-content">
-            <h3>Сделайте ставку</h3>
-            <div class="bet-options">
-                <button class="chip" data-bet="10">10</button>
-                <button class="chip" data-bet="50">50</button>
-                <button class="chip" data-bet="100">100</button>
-                <button class="chip" data-bet="500">500</button>
-                <button class="chip" data-bet="1000">1000</button>
-                <button class="chip" data-bet="5000">5000</button>
+    
+    <!-- Deposit Modal -->
+    <div id="depositModal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-overlay">
+        <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 border border-gray-700">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">Пополнение баланса</h3>
+                <button id="closeDepositModal" class="text-gray-400 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
-            <button class="close-modal">Закрыть</button>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">Сумма пополнения</label>
+                <div class="relative">
+                    <input type="number" id="depositAmount" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="1000">
+                    <span class="absolute right-3 top-3">₽</span>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">Способ оплаты</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                        Карта
+                    </button>
+                    <button class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        Крипта
+                    </button>
+                </div>
+            </div>
+            
+            <button class="w-full py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-lg font-bold text-black transition-all transform hover:scale-105">
+                Пополнить
+            </button>
         </div>
     </div>
-
-    <script src="js/storage.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/games.js"></script>
     
-    <audio id="spinSound" src="assets/sounds/spin.mp3" preload="auto"></audio>
-    <audio id="winSound" src="assets/sounds/win.mp3" preload="auto"></audio>
-    <audio id="loseSound" src="assets/sounds/lose.mp3" preload="auto"></audio>
-    <audio id="clickSound" src="assets/sounds/click.mp3" preload="auto"></audio>
+    <!-- Win Modal -->
+    <div id="winModal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-overlay">
+        <div class="bg-gradient-to-br from-yellow-600 to-yellow-800 rounded-xl p-6 w-full max-w-md mx-4 text-center">
+            <div class="flex justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-white" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+            </div>
+            
+            <h3 class="text-2xl font-bold mb-2">Поздравляем!</h3>
+            <p class="text-lg mb-4">Вы выиграли <span id="winAmount" class="font-bold">1,000</span> ₽</p>
+            
+            <button id="closeWinModal" class="w-full py-3 bg-black bg-opacity-30 rounded-lg font-bold text-white border border-white transition-all transform hover:scale-105">
+                Продолжить
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // Navigation
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Remove active class from all buttons
+                document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                
+                // Add active class to clicked button
+                this.classList.add('active');
+                
+                // Hide all sections
+                document.querySelectorAll('.page-section').forEach(section => {
+                    section.classList.add('hidden');
+                });
+                
+                // Show selected section
+                const sectionId = this.getAttribute('data-section') + 'Section';
+                document.getElementById(sectionId).classList.remove('hidden');
+            });
+        });
+        
+        // Deposit modal
+        document.getElementById('depositBtn').addEventListener('click', function() {
+            document.getElementById('depositModal').classList.remove('hidden');
+        });
+        
+        document.getElementById('closeDepositModal').addEventListener('click', function() {
+            document.getElementById('depositModal').classList.add('hidden');
+        });
+        
+        // Slots game logic
+        const symbols = ['7', '🍒', '🍋', '🍊', '🍉', '💰'];
+        let balance = 5000;
+        let currentBet = 100;
+        
+        document.querySelectorAll('[data-bet]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                currentBet = parseInt(this.getAttribute('data-bet'));
+                document.getElementById('currentBet').textContent = currentBet;
+                
+                // Highlight selected chip
+                document.querySelectorAll('[data-bet]').forEach(b => b.classList.remove('ring-2', 'ring-white'));
+                this.classList.add('ring-2', 'ring-white');
+            });
+        });
+        
+        document.getElementById('spinButton').addEventListener('click', function() {
+            if (balance < currentBet) {
+                showNotification('Недостаточно средств!', 'red');
+                return;
+            }
+            
+            balance -= currentBet;
+            updateBalance();
+            
+            // Show spinning animation
+            const spinIcon = document.getElementById('spinIcon');
+            spinIcon.classList.remove('hidden');
+            this.disabled = true;
+            
+            // Spin reels
+            spinReel('reel1');
+            spinReel('reel2');
+            spinReel('reel3');
+            
+            // Check for win after spinning
+            setTimeout(() => {
+                spinIcon.classList.add('hidden');
+                this.disabled = false;
+                
+                const reel1 = document.getElementById('reel1').textContent;
+                const reel2 = document.getElementById('reel2').textContent;
+                const reel3 = document.getElementById('reel3').textContent;
+                
+                if (reel1 === reel2 && reel2 === reel3) {
+                    let multiplier = 0;
+                    
+                    if (reel1 === '7') multiplier = 10;
+                    else if (reel1 === '🍒') multiplier = 5;
+                    else if (reel1 === '🍋') multiplier = 3;
+                    else if (reel1 === '🍊') multiplier = 2;
+                    else multiplier = 1;
+                    
+                    const winAmount = currentBet * multiplier;
+                    balance += winAmount;
+                    updateBalance();
+                    
+                    // Show win modal
+                    document.getElementById('winAmount').textContent = winAmount.toLocaleString();
+                    document.getElementById('winModal').classList.remove('hidden');
+                    
+                    // Add win animation to reels
+                    document.getElementById('reel1').classList.add('win-animation');
+                    document.getElementById('reel2').classList.add('win-animation');
+                    document.getElementById('reel3').classList.add('win-animation');
+                    
+                    setTimeout(() => {
+                        document.getElementById('reel1').classList.remove('win-animation');
+                        document.getElementById('reel2').classList.remove('win-animation');
+                        document.getElementById('reel3').classList.remove('win-animation');
+                    }, 2000);
+                }
+            }, 3000);
+        });
+        
+        document.getElementById('closeWinModal').addEventListener('click', function() {
+            document.getElementById('winModal').classList.add('hidden');
+        });
+        
+        function spinReel(reelId) {
+            const reel = document.getElementById(reelId);
+            let spinCount = 0;
+            const totalSpins = 10 + Math.floor(Math.random() * 10);
+            
+            const spinInterval = setInterval(() => {
+                reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+                spinCount++;
+                
+                if (spinCount >= totalSpins) {
+                    clearInterval(spinInterval);
+                    // Set final symbol
+                    reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+                }
+            }, 100);
+        }
+        
+        function updateBalance() {
+            document.getElementById('userBalance').textContent = balance.toLocaleString();
+            document.getElementById('slotsBalance').textContent = balance.toLocaleString();
+        }
+        
+        function showNotification(message, color = 'green') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg bg-${color}-500 text-white font-medium animate__animated animate__fadeInDown`;
+            
+            setTimeout(() => {
+                notification.classList.add('animate__fadeOutUp');
+                setTimeout(() => {
+                    notification.classList.add('hidden');
+                }, 500);
+            }, 3000);
+        }
+        
+        // Initialize
+        document.querySelector('[data-bet="100"]').classList.add('ring-2', 'ring-white');
+    </script>
 </body>
 </html>
