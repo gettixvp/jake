@@ -82,7 +82,7 @@
                     <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd" />
                 </svg>
-                <span id="userBalance" class="font-bold text-lg">5,000</span>
+                <span id="userBalance" class="font-bold text-lg"><%= user ? user.balance.toLocaleString() : '5,000' %></span>
                 <span class="ml-1">₽</span>
             </div>
         </header>
@@ -111,7 +111,7 @@
                 
                 <!-- Games Grid -->
                 <div class="grid grid-cols-2 gap-4 mb-6">
-                    <div class="game-card bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 text-center border border-gray-700 transition-all duration-300 cursor-pointer">
+                    <div class="game-card bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 text-center border border-gray-700 transition-all duration-300 cursor-pointer" data-game="slots">
                         <div class="w-16 h-16 mx-auto mb-3 bg-blue-900 rounded-full flex items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -174,30 +174,20 @@
                         Последние победители
                     </h3>
                     
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between bg-gray-700 bg-opacity-50 px-3 py-2 rounded-lg">
-                            <div class="flex items-center">
-                                <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold mr-2">ID</div>
-                                <span class="font-medium">Игрок_1542</span>
-                            </div>
-                            <span class="text-yellow-400 font-bold">25,000 ₽</span>
-                        </div>
-                        
-                        <div class="flex items-center justify-between bg-gray-700 bg-opacity-50 px-3 py-2 rounded-lg">
-                            <div class="flex items-center">
-                                <div class="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-xs font-bold mr-2">ID</div>
-                                <span class="font-medium">Игрок_8765</span>
-                            </div>
-                            <span class="text-yellow-400 font-bold">12,500 ₽</span>
-                        </div>
-                        
-                        <div class="flex items-center justify-between bg-gray-700 bg-opacity-50 px-3 py-2 rounded-lg">
-                            <div class="flex items-center">
-                                <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-xs font-bold mr-2">ID</div>
-                                <span class="font-medium">Игрок_3214</span>
-                            </div>
-                            <span class="text-yellow-400 font-bold">8,200 ₽</span>
-                        </div>
+                    <div id="recentWinners" class="space-y-3">
+                        <% if (recentWinners && recentWinners.length > 0) { %>
+                            <% recentWinners.forEach(winner => { %>
+                                <div class="flex items-center justify-between bg-gray-700 bg-opacity-50 px-3 py-2 rounded-lg">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold mr-2">ID</div>
+                                        <span class="font-medium"><%= winner.username %></span>
+                                    </div>
+                                    <span class="text-yellow-400 font-bold"><%= winner.amount.toLocaleString() %> ₽</span>
+                                </div>
+                            <% }) %>
+                        <% } else { %>
+                            <p class="text-center text-gray-400">Пока нет победителей.</p>
+                        <% } %>
                     </div>
                 </div>
             </section>
@@ -206,7 +196,7 @@
             <section id="slotsSection" class="page-section hidden">
                 <div class="slot-machine rounded-xl p-4 mb-6">
                     <div class="flex justify-between mb-4">
-                        <div class="text-sm bg-gray-800 px-3 py-1 rounded-full">Баланс: <span id="slotsBalance" class="font-bold">5,000</span> ₽</div>
+                        <div class="text-sm bg-gray-800 px-3 py-1 rounded-full">Баланс: <span id="slotsBalance" class="font-bold"><%= user ? user.balance.toLocaleString() : '5,000' %></span> ₽</div>
                         <div class="text-sm bg-gray-800 px-3 py-1 rounded-full">Ставка: <span id="currentBet" class="font-bold">100</span> ₽</div>
                     </div>
                     
@@ -279,29 +269,29 @@
             <section id="profileSection" class="page-section hidden">
                 <div class="flex flex-col items-center mb-6">
                     <div class="w-24 h-24 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 mb-3 flex items-center justify-center relative">
-                        <span class="text-3xl font-bold">U</span>
+                        <span class="text-3xl font-bold" id="userInitial"><%= user ? user.username.charAt(0).toUpperCase() : 'U' %></span>
                         <div class="absolute bottom-0 right-0 w-6 h-6 bg-green-500 rounded-full border-2 border-gray-900"></div>
                     </div>
-                    <h2 class="text-xl font-bold" id="userName">Игрок</h2>
-                    <p class="text-gray-400 text-sm">ID: <span id="userId">123456</span></p>
+                    <h2 class="text-xl font-bold" id="userName"><%= user ? user.username : 'Игрок' %></h2>
+                    <p class="text-gray-400 text-sm">ID: <span id="userId"><%= user ? user.id : '123456' %></span></p>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-3 mb-6">
-                    <button class="bg-gradient-to-r from-blue-600 to-blue-800 p-3 rounded-xl flex flex-col items-center">
+                    <button id="depositBtn" class="bg-gradient-to-r from-blue-600 to-blue-800 p-3 rounded-xl flex flex-col items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <span class="font-medium text-sm">Пополнить</span>
                     </button>
                     
-                    <button class="bg-gradient-to-r from-green-600 to-green-800 p-3 rounded-xl flex flex-col items-center">
+                    <button id="withdrawBtn" class="bg-gradient-to-r from-green-600 to-green-800 p-3 rounded-xl flex flex-col items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
                         <span class="font-medium text-sm">Вывести</span>
                     </button>
                     
-                    <button class="bg-gradient-to-r from-purple-600 to-purple-800 p-3 rounded-xl flex flex-col items-center">
+                    <button id="historyBtn" class="bg-gradient-to-r from-purple-600 to-purple-800 p-3 rounded-xl flex flex-col items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -325,33 +315,43 @@
                         Ваши достижения
                     </h3>
                     
-                    <div class="grid grid-cols-3 gap-3">
-                        <div class="bg-gray-700 p-2 rounded-lg flex flex-col items-center">
-                            <div class="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center mb-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-black" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                </svg>
-                            </div>
-                            <span class="text-xs text-center">Новичок</span>
-                        </div>
-                        
-                        <div class="bg-gray-700 p-2 rounded-lg flex flex-col items-center opacity-50">
-                            <div class="w-10 h-10 bg-gray-500 rounded-full flex items-center justify-center mb-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                                </svg>
-                            </div>
-                            <span class="text-xs text-center">Ночной игрок</span>
-                        </div>
-                        
-                        <div class="bg-gray-700 p-2 rounded-lg flex flex-col items-center opacity-50">
-                            <div class="w-10 h-10 bg-gray-500 rounded-full flex items-center justify-center mb-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                            <span class="text-xs text-center">Рисковый</span>
-                        </div>
+                    <div id="achievements" class="grid grid-cols-3 gap-3">
+                        <% if (achievements && achievements.length > 0) { %>
+                            <% achievements.forEach(ach => { %>
+                                <div class="bg-gray-700 p-2 rounded-lg flex flex-col items-center <%= ach.unlocked ? '' : 'opacity-50' %>">
+                                    <div class="w-10 h-10 bg-<%= ach.unlocked ? 'yellow-500' : 'gray-500' %> rounded-full flex items-center justify-center mb-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-<%= ach.unlocked ? 'black' : 'gray-300' %>" viewBox="0 0 20 20" fill="currentColor">
+                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                        </svg>
+                                    </div>
+                                    <span class="text-xs text-center"><%= ach.name %></span>
+                                </div>
+                            <% }) %>
+                        <% } else { %>
+                            <p class="text-center text-gray-400">Достижения отсутствуют.</p>
+                        <% } %>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- History Section -->
+            <section id="historySection" class="page-section hidden">
+                <div class="bg-gray-800 bg-opacity-50 rounded-xl p-4">
+                    <h3 class="font-bold mb-3">История транзакций</h3>
+                    <div id="transactionHistory" class="space-y-3">
+                        <% if (transactions && transactions.length > 0) { %>
+                            <% transactions.forEach(t => { %>
+                                <div class="flex items-center justify-between bg-gray-700 bg-opacity-50 px-3 py-2 rounded-lg">
+                                    <span><%= new Date(t.date).toLocaleString() %></span>
+                                    <span class="<%= t.type === 'deposit' || t.type === 'win' ? 'text-green-400' : 'text-red-400' %> font-bold">
+                                        <%= t.type === 'deposit' ? 'Пополнение' : t.type === 'withdraw' ? 'Вывод' : t.type === 'win' ? 'Выигрыш' : 'Проигрыш' %>: 
+                                        <%= t.amount.toLocaleString() %> ₽
+                                    </span>
+                                </div>
+                            <% }) %>
+                        <% } else { %>
+                            <p class="text-center text-gray-400">История транзакций пуста.</p>
+                        <% } %>
                     </div>
                 </div>
             </section>
@@ -420,8 +420,34 @@
                 </div>
             </div>
             
-            <button class="w-full py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-lg font-bold text-black transition-all transform hover:scale-105">
+            <button id="confirmDeposit" class="w-full py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-lg font-bold text-black transition-all transform hover:scale-105">
                 Пополнить
+            </button>
+        </div>
+    </div>
+    
+    <!-- Withdraw Modal -->
+    <div id="withdrawModal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-overlay">
+        <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 border border-gray-700">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">Вывод средств</h3>
+                <button id="closeWithdrawModal" class="text-gray-400 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">Сумма вывода</label>
+                <div class="relative">
+                    <input type="number" id="withdrawAmount" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="1000">
+                    <span class="absolute right-3 top-3">₽</span>
+                </div>
+            </div>
+            
+            <button id="confirmWithdraw" class="w-full py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-lg font-bold text-black transition-all transform hover:scale-105">
+                Вывести
             </button>
         </div>
     </div>
@@ -445,136 +471,326 @@
     </div>
     
     <script>
-        // Navigation
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        let token = null;
+        let currentBet = 100;
+
+        // Авторизация через Telegram
+        async function authenticate() {
+            const initData = tg.initData;
+            if (!initData) {
+                showNotification('Не удалось авторизоваться. Откройте через Telegram.', 'red');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ initData })
+                });
+                const data = await response.json();
+                if (data.token) {
+                    token = data.token;
+                    localStorage.setItem('token', token);
+                    const user = data.user;
+                    document.getElementById('userName').textContent = user.username;
+                    document.getElementById('userId').textContent = user.id;
+                    document.getElementById('userInitial').textContent = user.username.charAt(0).toUpperCase();
+                    updateBalance(user.balance);
+                    loadProfile();
+                    loadRecentWinners();
+                } else {
+                    showNotification('Ошибка авторизации.', 'red');
+                }
+            } catch (error) {
+                showNotification('Ошибка авторизации: ' + error.message, 'red');
+            }
+        }
+
+        // Загрузка профиля
+        async function loadProfile() {
+            try {
+                const response = await fetch('/api/user/profile', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (data.error) {
+                    showNotification(data.error, 'red');
+                    return;
+                }
+                updateBalance(data.balance);
+                renderAchievements(data.achievements);
+            } catch (error) {
+                showNotification('Ошибка загрузки профиля: ' + error.message, 'red');
+            }
+        }
+
+        // Загрузка последних победителей
+        async function loadRecentWinners() {
+            try {
+                const response = await fetch('/api/game/recent-winners');
+                const winners = await response.json();
+                const recentWinners = document.getElementById('recentWinners');
+                recentWinners.innerHTML = winners.map(winner => `
+                    <div class="flex items-center justify-between bg-gray-700 bg-opacity-50 px-3 py-2 rounded-lg">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold mr-2">ID</div>
+                            <span class="font-medium">${winner.username}</span>
+                        </div>
+                        <span class="text-yellow-400 font-bold">${winner.amount.toLocaleString()} ₽</span>
+                    </div>
+                `).join('');
+            } catch (error) {
+                showNotification('Ошибка загрузки победителей: ' + error.message, 'red');
+            }
+        }
+
+        // Навигация
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.addEventListener('click', function() {
-                // Remove active class from all buttons
                 document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-                
-                // Add active class to clicked button
                 this.classList.add('active');
-                
-                // Hide all sections
                 document.querySelectorAll('.page-section').forEach(section => {
                     section.classList.add('hidden');
                 });
-                
-                // Show selected section
                 const sectionId = this.getAttribute('data-section') + 'Section';
                 document.getElementById(sectionId).classList.remove('hidden');
+
+                if (sectionId === 'profileSection') {
+                    loadProfile();
+                } else if (sectionId === 'homeSection') {
+                    loadRecentWinners();
+                }
             });
         });
-        
-        // Deposit modal
+
+        // Переход к играм
+        document.querySelectorAll('.game-card').forEach(card => {
+            card.addEventListener('click', function() {
+                const game = this.getAttribute('data-game');
+                if (game) {
+                    document.querySelectorAll('.page-section').forEach(section => {
+                        section.classList.add('hidden');
+                    });
+                    document.getElementById(`${game}Section`).classList.remove('hidden');
+                    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelector(`.nav-btn[data-section="${game}"]`).classList.add('active');
+                }
+            });
+        });
+
+        // Модальное окно пополнения
         document.getElementById('depositBtn').addEventListener('click', function() {
             document.getElementById('depositModal').classList.remove('hidden');
         });
-        
+
         document.getElementById('closeDepositModal').addEventListener('click', function() {
             document.getElementById('depositModal').classList.add('hidden');
         });
-        
-        // Slots game logic
-        const symbols = ['7', '🍒', '🍋', '🍊', '🍉', '💰'];
-        let balance = 5000;
-        let currentBet = 100;
-        
+
+        document.getElementById('confirmDeposit').addEventListener('click', async function() {
+            const amount = parseInt(document.getElementById('depositAmount').value);
+            if (!amount || amount < 50) {
+                showNotification('Минимальная сумма пополнения - 50 ₽', 'red');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/user/deposit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ amount })
+                });
+                const data = await response.json();
+                if (data.error) {
+                    showNotification(data.error, 'red');
+                    return;
+                }
+                updateBalance(data.balance);
+                showNotification(`Баланс пополнен на ${amount} ₽`, 'green');
+                document.getElementById('depositModal').classList.add('hidden');
+            } catch (error) {
+                showNotification('Ошибка пополнения: ' + error.message, 'red');
+            }
+        });
+
+        // Модальное окно вывода
+        document.getElementById('withdrawBtn').addEventListener('click', function() {
+            document.getElementById('withdrawModal').classList.remove('hidden');
+        });
+
+        document.getElementById('closeWithdrawModal').addEventListener('click', function() {
+            document.getElementById('withdrawModal').classList.add('hidden');
+        });
+
+        document.getElementById('confirmWithdraw').addEventListener('click', async function() {
+            const amount = parseInt(document.getElementById('withdrawAmount').value);
+            if (!amount || amount < 50) {
+                showNotification('Минимальная сумма вывода - 50 ₽', 'red');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/user/withdraw', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ amount })
+                });
+                const data = await response.json();
+                if (data.error) {
+                    showNotification(data.error, 'red');
+                    return;
+                }
+                updateBalance(data.balance);
+                showNotification(`Вывод на ${amount} ₽ выполнен`, 'green');
+                document.getElementById('withdrawModal').classList.add('hidden');
+            } catch (error) {
+                showNotification('Ошибка вывода: ' + error.message, 'red');
+            }
+        });
+
+        // История транзакций
+        document.getElementById('historyBtn').addEventListener('click', async function() {
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            document.getElementById('historySection').classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/transactions', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const transactions = await response.json();
+                const history = document.getElementById('transactionHistory');
+                history.innerHTML = transactions.length > 0
+                    ? transactions.map(t => `
+                        <div class="flex items-center justify-between bg-gray-700 bg-opacity-50 px-3 py-2 rounded-lg">
+                            <span>${new Date(t.date).toLocaleString()}</span>
+                            <span class="${t.type === 'deposit' || t.type === 'win' ? 'text-green-400' : 'text-red-400'} font-bold">
+                                ${t.type === 'deposit' ? 'Пополнение' : t.type === 'withdraw' ? 'Вывод' : t.type === 'win' ? 'Выигрыш' : 'Проигрыш'}: 
+                                ${t.amount.toLocaleString()} ₽
+                            </span>
+                        </div>
+                    `).join('')
+                    : '<p class="text-center text-gray-400">История транзакций пуста.</p>';
+            } catch (error) {
+                showNotification('Ошибка загрузки истории: ' + error.message, 'red');
+            }
+        });
+
+        // Логика слотов
         document.querySelectorAll('[data-bet]').forEach(btn => {
             btn.addEventListener('click', function() {
                 currentBet = parseInt(this.getAttribute('data-bet'));
                 document.getElementById('currentBet').textContent = currentBet;
-                
-                // Highlight selected chip
                 document.querySelectorAll('[data-bet]').forEach(b => b.classList.remove('ring-2', 'ring-white'));
                 this.classList.add('ring-2', 'ring-white');
             });
         });
-        
-        document.getElementById('spinButton').addEventListener('click', function() {
-            if (balance < currentBet) {
-                showNotification('Недостаточно средств!', 'red');
-                return;
-            }
-            
-            balance -= currentBet;
-            updateBalance();
-            
-            // Show spinning animation
-            const spinIcon = document.getElementById('spinIcon');
-            spinIcon.classList.remove('hidden');
-            this.disabled = true;
-            
-            // Spin reels
-            spinReel('reel1');
-            spinReel('reel2');
-            spinReel('reel3');
-            
-            // Check for win after spinning
-            setTimeout(() => {
-                spinIcon.classList.add('hidden');
-                this.disabled = false;
-                
-                const reel1 = document.getElementById('reel1').textContent;
-                const reel2 = document.getElementById('reel2').textContent;
-                const reel3 = document.getElementById('reel3').textContent;
-                
-                if (reel1 === reel2 && reel2 === reel3) {
-                    let multiplier = 0;
-                    
-                    if (reel1 === '7') multiplier = 10;
-                    else if (reel1 === '🍒') multiplier = 5;
-                    else if (reel1 === '🍋') multiplier = 3;
-                    else if (reel1 === '🍊') multiplier = 2;
-                    else multiplier = 1;
-                    
-                    const winAmount = currentBet * multiplier;
-                    balance += winAmount;
-                    updateBalance();
-                    
-                    // Show win modal
-                    document.getElementById('winAmount').textContent = winAmount.toLocaleString();
-                    document.getElementById('winModal').classList.remove('hidden');
-                    
-                    // Add win animation to reels
-                    document.getElementById('reel1').classList.add('win-animation');
-                    document.getElementById('reel2').classList.add('win-animation');
-                    document.getElementById('reel3').classList.add('win-animation');
-                    
-                    setTimeout(() => {
-                        document.getElementById('reel1').classList.remove('win-animation');
-                        document.getElementById('reel2').classList.remove('win-animation');
-                        document.getElementById('reel3').classList.remove('win-animation');
-                    }, 2000);
+
+        document.getElementById('spinButton').addEventListener('click', async function() {
+            try {
+                const response = await fetch('/api/game/spin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ bet: currentBet })
+                });
+                const data = await response.json();
+                if (data.error) {
+                    showNotification(data.error, 'red');
+                    return;
                 }
-            }, 3000);
+
+                const { reels, winAmount, balance } = data;
+                updateBalance(balance);
+
+                // Анимация спина
+                const spinIcon = document.getElementById('spinIcon');
+                spinIcon.classList.remove('hidden');
+                this.disabled = true;
+
+                spinReel('reel1', reels[0]);
+                spinReel('reel2', reels[1]);
+                spinReel('reel3', reels[2]);
+
+                setTimeout(() => {
+                    spinIcon.classList.add('hidden');
+                    this.disabled = false;
+
+                    if (winAmount > 0) {
+                        document.getElementById('winAmount').textContent = winAmount.toLocaleString();
+                        document.getElementById('winModal').classList.remove('hidden');
+                        document.getElementById('reel1').classList.add('win-animation');
+                        document.getElementById('reel2').classList.add('win-animation');
+                        document.getElementById('reel3').classList.add('win-animation');
+                        setTimeout(() => {
+                            document.getElementById('reel1').classList.remove('win-animation');
+                            document.getElementById('reel2').classList.remove('win-animation');
+                            document.getElementById('reel3').classList.remove('win-animation');
+                        }, 2000);
+                    }
+                }, 3000);
+            } catch (error) {
+                showNotification('Ошибка спина: ' + error.message, 'red');
+            }
         });
-        
+
         document.getElementById('closeWinModal').addEventListener('click', function() {
             document.getElementById('winModal').classList.add('hidden');
         });
-        
-        function spinReel(reelId) {
+
+        function spinReel(reelId, finalSymbol) {
             const reel = document.getElementById(reelId);
+            const symbols = ['7', '🍒', '🍋', '🍊', '🍉', '💰'];
             let spinCount = 0;
             const totalSpins = 10 + Math.floor(Math.random() * 10);
-            
+
             const spinInterval = setInterval(() => {
                 reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
                 spinCount++;
-                
+
                 if (spinCount >= totalSpins) {
                     clearInterval(spinInterval);
-                    // Set final symbol
-                    reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+                    reel.textContent = finalSymbol;
                 }
             }, 100);
         }
-        
-        function updateBalance() {
+
+        function updateBalance(balance) {
             document.getElementById('userBalance').textContent = balance.toLocaleString();
             document.getElementById('slotsBalance').textContent = balance.toLocaleString();
         }
-        
+
+        function renderAchievements(achievements) {
+            const achievementsDiv = document.getElementById('achievements');
+            if (!achievements || achievements.length === 0) {
+                achievementsDiv.innerHTML = '<p class="text-center text-gray-400">Достижения отсутствуют.</p>';
+                return;
+            }
+
+            achievementsDiv.innerHTML = achievements.map(ach => `
+                <div class="bg-gray-700 p-2 rounded-lg flex flex-col items-center ${ach.unlocked ? '' : 'opacity-50'}">
+                    <div class="w-10 h-10 bg-${ach.unlocked ? 'yellow-500' : 'gray-500'} rounded-full flex items-center justify-center mb-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-${ach.unlocked ? 'black' : 'gray-300'}" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                    </div>
+                    <span class="text-xs text-center">${ach.name}</span>
+                </div>
+            `).join('');
+        }
+
         function showNotification(message, color = 'green') {
             const notification = document.getElementById('notification');
             notification.textContent = message;
@@ -587,9 +803,10 @@
                 }, 500);
             }, 3000);
         }
-        
-        // Initialize
+
+        // Инициализация
         document.querySelector('[data-bet="100"]').classList.add('ring-2', 'ring-white');
+        authenticate();
     </script>
 </body>
 </html>

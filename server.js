@@ -1,51 +1,93 @@
-// server.js
-require('dotenv').config();
 const express = require('express');
-const { Telegraf } = require('telegraf');
-const { validate } = require('@telegram-apps/init-data-node');
-const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const dotenv = require('dotenv');
+const cors = require('cors');
 const path = require('path');
+const jwt = require('jsonwebtoken');
+const User = require('./models/User');
+const Winner = require('./models/Winner');
+const Transaction = require('./models/Transaction');
+
+dotenv.config();
 
 const app = express();
-const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 
-// Middleware для обработки JSON и статических файлов
+// Middleware
+app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '.')));
 
-// Настройка webhook
-const webhookPath = `/bot${process.env.TELEGRAM_TOKEN}`;
-bot.telegram.setWebhook(`${process.env.WEBAPP_URL}${webhookPath}`);
+// Настройка EJS как шаблонизатора
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
-// Обработка входящих сообщений
-bot.start((ctx) => {
-    ctx.reply('Добро пожаловать в Star Casino! 🎰', {
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: 'Открыть казино', web_app: { url: process.env.WEBAPP_URL } }]
-            ]
-        }
-    });
-});
+// Middleware для проверки авторизации
+const authenticateToken = async (req, res, next) => {
+    const token = req.headers['authorization']?.split(' ')[1];
+    if (!token) {
+        req.user = null;
+        return next();
+    }
 
-// Валидация initData и генерация JWT
-app.post('/auth', async (req, res) => {
-    const initData = req.body.initData;
     try {
-        validate(initData, process.env.TELEGRAM_TOKEN, { expiresIn: 3600 });
-        const userData = new URLSearchParams(initData).get('user');
-        const user = JSON.parse(userData);
-        const token = jwt.sign({ id: user.id, username: user.username }, process.env.TELEGRAM_TOKEN, { expiresIn: '1h' });
-        res.json({ token });
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+        const user = await User.findById(decoded.userId).populate('achievements');
+        req.user = user ? {
+            id: user.telegramId,
+            username: user.username,
+            balance: user.balance,
+            achievements: user.achievements
+        } : null;
+        next();
     } catch (error) {
-        res.status(401).json({ error: 'Invalid initData' });
+        req.user = null;
+        next();
+    }
+};
+
+// Routes
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/user', require('./routes/user'));
+app.use('/api/game', require('./routes/game'));
+app.use('/api/transactions', require('./routes/transaction'));
+
+// Главный маршрут для рендеринга страницы
+app.get('/', authenticateToken, async (req, res) => {
+    try {
+        const recentWinners = await Winner.find().sort({ date: -1 }).limit(3);
+        let achievements = [];
+        let transactions = [];
+        if (req.user) {
+            achievements = req.user.achievements;
+            transactions = await Transaction.find({ userId: req.user._id }).sort({ date: -1 });
+        }
+
+        res.render('index', {
+            user: req.user,
+            recentWinners,
+            achievements,
+            transactions
+        });
+    } catch (error) {
+        console.error('Error rendering page:', error);
+        res.render('index', {
+            user: null,
+            recentWinners: [],
+            achievements: [],
+            transactions: []
+        });
     }
 });
 
-// Webhook для Telegram
-app.use(bot.webhookCallback(webhookPath));
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+}).then(() => {
+    console.log('Connected to MongoDB');
+}).catch(err => {
+    console.error('MongoDB connection error:', err);
+});
 
-// Запуск сервера
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
