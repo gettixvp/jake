@@ -234,7 +234,7 @@ class OnlinerParser:
                 logger.error("Chrome не найден по пути /usr/local/bin/google-chrome")
                 return results
 
-            # Проверяем версию Chrome W
+            # Проверяем версию Chrome
             try:
                 chrome_version = subprocess.check_output(["/usr/local/bin/google-chrome", "--version"]).decode("utf-8")
                 logger.info(f"Chrome version: {chrome_version}")
@@ -524,15 +524,20 @@ class ApartmentBot:
         except Exception as e:
             logger.error(f"Ошибка в handle_callback: {e}")
 
-@app.route('/mini-app')
+@app.route('/')
+def index():
+    return "Welcome to the Apartment Bot! Go to <a href='/mini-app'>Mini App</a> to search for apartments."
+
+@app.route('/mini-app', strict_slashes=False)
 def mini_app():
-    # Логируем текущую директорию и содержимое
     current_dir = os.getcwd()
     logger.info(f"Current working directory: {current_dir}")
     logger.info(f"Files in current directory: {os.listdir(current_dir)}")
     
+    logger.info("Attempting to open mini_app.html")
     try:
         with open("mini_app.html", "r", encoding="utf-8") as f:
+            logger.info("Successfully opened mini_app.html")
             return f.read()
     except FileNotFoundError as e:
         logger.error(f"mini_app.html not found: {e}")
@@ -554,13 +559,21 @@ async def main():
 
     # Настройка Hypercorn для Flask
     config = Config()
-    config.bind = ["0.0.0.0:" + os.environ.get("PORT", "5000")]
+    port = os.environ.get("PORT", "5000")
+    config.bind = ["0.0.0.0:" + port]
     config.debug = True
+    logger.info(f"Starting Hypercorn on port {port}")
 
     # Запускаем Telegram-бот в отдельном потоке
     import threading
     def run_bot():
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Создаём новый событийный цикл для этого потока
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            application.run_polling(allowed_updates=Update.ALL_TYPES)
+        finally:
+            loop.close()
 
     bot_thread = threading.Thread(target=run_bot)
     bot_thread.start()
