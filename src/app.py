@@ -12,10 +12,6 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from telegram.error import Forbidden, TimedOut
 from bs4 import BeautifulSoup
 import aiohttp
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-import time
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 import hypercorn.asyncio
@@ -23,7 +19,6 @@ from hypercorn.config import Config
 import psycopg2
 from psycopg2.extras import DictCursor
 import threading
-import subprocess
 
 # --- Configuration ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7846698102:AAFR2bhmjAkPiV-PjtnFIu_oRnzxYPP1xVo")
@@ -44,11 +39,6 @@ REQUEST_TIMEOUT = 20
 PARSE_INTERVAL = 30
 KUFAR_LIMIT = 7
 ONLINER_LIMIT = 7
-SELENIUM_LIMIT = 3
-SELENIUM_SLEEP = 8
-
-CHROME_BINARY_PATH = os.environ.get("CHROME_PATH", "/usr/bin/google-chrome")
-CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER_PATH", "/usr/bin/chromedriver")
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -61,7 +51,6 @@ logging.getLogger('apscheduler.scheduler').setLevel(logging.WARNING)
 logging.getLogger('apscheduler.executors').setLevel(logging.WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('httpcore').setLevel(logging.WARNING)
-logging.getLogger('selenium.webdriver.remote.remote_connection').setLevel(logging.WARNING)
 logging.getLogger('urllib3.connectionpool').setLevel(logging.INFO)
 
 # --- Constants ---
@@ -249,7 +238,7 @@ class ApartmentParser:
             logger.exception(f"Unexpected error fetching/parsing Kufar for {city}: {e}")
 
         logger.info(f"Parsed {len(results)} ads from Kufar for {city}.")
-        return results
+        return results[:KUFAR_LIMIT]  # Ограничиваем количество
 
     @staticmethod
     def _parse_price(ad) -> Optional[int]:
@@ -334,50 +323,22 @@ class ApartmentParser:
 
 class OnlinerParser:
     @staticmethod
-    def check_selenium_setup():
-        checks_ok = True
-        if not os.path.exists(CHROMEDRIVER_PATH):
-            logger.error(f"Chromedriver not found at: {CHROMEDRIVER_PATH}")
-            checks_ok = False
-        elif not os.access(CHROMEDRIVER_PATH, os.X_OK):
-            logger.error(f"Chromedriver is not executable at: {CHROMEDRIVER_PATH}")
-            checks_ok = False
-        else:
-            try:
-                chromedriver_version = subprocess.check_output([CHROMEDRIVER_PATH, "--version"]).decode("utf-8").strip()
-                logger.info(f"Chromedriver found: {CHROMEDRIVER_PATH}, Version: {chromedriver_version}")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Failed to get Chromedriver version: {e}")
-                checks_ok = False
-
-        if not os.path.exists(CHROME_BINARY_PATH):
-            logger.error(f"Chrome binary not found at: {CHROME_BINARY_PATH}")
-            checks_ok = False
-        else:
-            try:
-                chrome_version = subprocess.check_output([CHROME_BINARY_PATH, "--version"]).decode("utf-8").strip()
-                logger.info(f"Chrome binary found: {CHROME_BINARY_PATH}, Version: {chrome_version}")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Failed to get Chrome version: {e}")
-                checks_ok = False
-
-        if checks_ok:
-            logger.info("Basic Selenium setup checks passed.")
-        else:
-            logger.error("Selenium setup checks failed. Onliner parsing may not work.")
-        return checks_ok
-
-    @staticmethod
-    def fetch_ads(city: str, min_price: Optional[int] = None, max_price: Optional[int] = None, rooms_filter: Optional[str] = None) -> List[Dict]:
-        if not OnlinerParser.check_selenium_setup(): return []
-
+    async def fetch_ads(city: str, min_price: Optional[int] = None, max_price: Optional[int] = None, rooms_filter: Optional[str] = None) -> List[Dict]:
+        user_agent = random.choice(USER_AGENTS)
+        headers = {
+            "User-Agent": user_agent,
+            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+        }
         results = []
+        base_url = "https://r.onliner.by/ak/"
         fragment = ONLINER_CITY_URLS.get(city)
         if not fragment or '#' not in fragment:
             logger.error(f"Invalid Onliner URL fragment for city: {city}")
             return []
 
-        base_url = "https://r.onliner.by/ak/"
         query_params = {}
         if rooms_filter:
             if rooms_filter.isdigit(): query_params["rent_type[]"] = f"{rooms_filter}_room"
@@ -389,90 +350,59 @@ class OnlinerParser:
 
         query_string = urllib.parse.urlencode(query_params, doseq=True)
         full_url = f"{base_url}?{query_string}{fragment}" if query_string else f"{base_url}{fragment}"
-
         logger.info(f"Onliner Request URL: {full_url}")
 
-        chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
-        chrome_options.binary_location = CHROME_BINARY_PATH
-        chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        chrome_options.add_argument('--log-level=3')
+        await asyncio.sleep(random.uniform(1, 3))
 
-        driver = None
         try:
-            service = Service(CHROMEDRIVER_PATH, log_output=subprocess.DEVNULL)
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-            driver.set_page_load_timeout(REQUEST_TIMEOUT + 15)
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(full_url, timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)) as response:
+                    logger.info(f"Onliner response status: {response.status} for {city}")
+                    response.raise_for_status()
+                    html = await response.text()
+                    soup = BeautifulSoup(html, "html.parser")
+                    ad_elements = soup.select("div.classifieds__item")
 
-            logger.info(f"Navigating to Onliner URL...")
-            driver.get(full_url)
-            logger.info(f"Waiting {SELENIUM_SLEEP}s for Onliner content...")
-            time.sleep(SELENIUM_SLEEP)
+                    if not ad_elements:
+                        logger.warning(f"No ads found with selector 'div.classifieds__item' on Onliner for {city}.")
+                        if "Произошла ошибка" in html:
+                            logger.error("Onliner page indicates an error occurred.")
+                        return []
 
-            page_source = driver.page_source
-            if not page_source or "ERR_CONNECTION_REFUSED" in page_source:
-                logger.error("Failed to load Onliner page (Connection Refused or empty source).")
-                return []
-            if "Произошла ошибка" in page_source:
-                logger.error("Onliner page indicates an error occurred during loading.")
-                return []
+                    logger.info(f"Found {len(ad_elements)} potential ads on Onliner for {city}.")
+                    for ad_element in ad_elements:
+                        try:
+                            link_tag = ad_element.select_one("a.classified__handle")
+                            link = link_tag['href'] if link_tag else None
+                            if not link or not link.startswith('https://r.onliner.by/ak/apartments/'): continue
 
-            soup = BeautifulSoup(page_source, "html.parser")
-            ad_elements = soup.select("div.classifieds__item")
+                            price = OnlinerParser._parse_price(ad_element)
+                            rooms_str, area = OnlinerParser._parse_rooms_area(ad_element)
 
-            if not ad_elements:
-                logger.warning(f"No ads found with selector 'div.classifieds__item' on Onliner for {city}.")
-                return []
+                            if not OnlinerParser._check_room_filter(rooms_str, rooms_filter): continue
 
-            logger.info(f"Found {len(ad_elements)} potential ads on Onliner for {city}.")
-            for ad_element in ad_elements:
-                try:
-                    link_tag = ad_element.select_one("a.classified__handle")
-                    link = link_tag['href'] if link_tag else None
-                    if not link or not link.startswith('https://r.onliner.by/ak/apartments/'): continue
-
-                    price = OnlinerParser._parse_price(ad_element)
-                    rooms_str, area = OnlinerParser._parse_rooms_area(ad_element)
-
-                    if not OnlinerParser._check_room_filter(rooms_str, rooms_filter): continue
-
-                    results.append({
-                        "link": link,
-                        "source": "Onliner",
-                        "city": city,
-                        "price": price,
-                        "rooms": rooms_str,
-                        "address": OnlinerParser._parse_address(ad_element),
-                        "image": OnlinerParser._parse_image(ad_element),
-                        "description": OnlinerParser._parse_description(ad_element, rooms_str, area),
-                        "user_id": None
-                    })
-                except Exception as parse_err:
-                    logger.warning(f"Could not parse Onliner ad item ({link}): {parse_err}")
-
-            logger.info(f"Parsed {len(results)} ads from Onliner for {city}.")
-
+                            results.append({
+                                "link": link,
+                                "source": "Onliner",
+                                "city": city,
+                                "price": price,
+                                "rooms": rooms_str,
+                                "address": OnlinerParser._parse_address(ad_element),
+                                "image": OnlinerParser._parse_image(ad_element),
+                                "description": OnlinerParser._parse_description(ad_element, rooms_str, area),
+                                "user_id": None
+                            })
+                        except Exception as parse_err:
+                            logger.warning(f"Could not parse Onliner ad item ({link}): {parse_err}")
+        except aiohttp.ClientResponseError as e:
+            logger.error(f"HTTP error fetching Onliner for {city}: {e.status} {e.message}")
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout error fetching Onliner for {city}")
         except Exception as e:
-            logger.exception(f"Error during Onliner Selenium operation for {city}: {e}")
-            if driver:
-                try:
-                    with open(f"onliner_sel_error_{city}.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-                    logger.info(f"Saved error page source to onliner_sel_error_{city}.html")
-                except Exception: pass
-            return []
-        finally:
-            if driver:
-                try:
-                    driver.quit()
-                except Exception: pass
+            logger.exception(f"Unexpected error fetching/parsing Onliner for {city}: {e}")
 
-        return results
+        logger.info(f"Parsed {len(results)} ads from Onliner for {city}.")
+        return results[:ONLINER_LIMIT]  # Ограничиваем количество
 
     @staticmethod
     def _parse_price(ad) -> Optional[int]:
@@ -503,7 +433,7 @@ class OnlinerParser:
 
                 area_match_type = re.search(r"(\d+(?:[.,]\d+)?)\s*м²", text)
                 if area_match_type:
-                    area's = float(area_match_type.group(1).replace(',', '.'))
+                    area = float(area_match_type.group(1).replace(',', '.'))
 
             if area_element:
                 area_match_dedicated = re.search(r"(\d+(?:[.,]\d+)?)\s*м²", area_element.text)
@@ -622,7 +552,7 @@ async def fetch_and_store_all_ads():
     tasks = []
     for city in CITIES.keys():
         tasks.append(ApartmentParser.fetch_ads(city))
-        tasks.append(asyncio.to_thread(OnlinerParser.fetch_ads, city))
+        tasks.append(OnlinerParser.fetch_ads(city))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -700,8 +630,8 @@ def get_ads_api():
             onliner_ads = [ad for ad in all_ads_dicts if ad["source"] == "Onliner"]
             user_ads = [ad for ad in all_ads_dicts if ad["source"] == "User"]
 
-            kufar_limit = KUFAR_LIMIT if kufar_offset == 0 else SELENIUM_LIMIT
-            onliner_limit = ONLINER_LIMIT if onliner_offset == 0 else SELENIUM_LIMIT
+            kufar_limit = KUFAR_LIMIT
+            onliner_limit = ONLINER_LIMIT
             user_limit = 10
 
             kufar_slice = kufar_ads[kufar_offset : kufar_offset + kufar_limit]
@@ -746,7 +676,6 @@ def get_ads_api():
 
 @app.route('/api/register_user', methods=['POST'])
 def register_user_api():
-    """Registers or updates user info from Mini App initData."""
     data = request.json
     if not data or 'user_id' not in data:
         logger.warning("Received /api/register_user request with missing user_id")
@@ -789,7 +718,6 @@ def register_user_api():
 
 @app.route('/api/add_listing', methods=['POST'])
 async def add_listing_api():
-    """Handles new listing submission from the Mini App."""
     conn = None
     try:
         user_id = request.form.get('user_id', type=int)
