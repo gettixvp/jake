@@ -2,6 +2,7 @@ import logging
 import asyncio
 import re
 import urllib.parse
+import os
 from typing import List, Dict, Optional
 from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
@@ -55,46 +56,50 @@ ONLINER_CITY_URLS = {
 
 # Инициализация базы данных PostgreSQL
 def init_db():
-    with psycopg2.connect(DATABASE_URL) as conn:
-        with conn.cursor() as cur:
-            cur.execute("DROP TABLE IF EXISTS ads CASCADE")
-            cur.execute("DROP TABLE IF EXISTS users CASCADE")
-            cur.execute("DROP TABLE IF EXISTS pending_listings CASCADE")
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS ads (
-                    link TEXT PRIMARY KEY,
-                    source TEXT,
-                    city TEXT,
-                    price INTEGER,
-                    rooms INTEGER,
-                    address TEXT,
-                    image TEXT,
-                    description TEXT,
-                    user_id INTEGER
-                )
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY,
-                    first_name TEXT,
-                    last_name TEXT
-                )
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS pending_listings (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER,
-                    title TEXT,
-                    description TEXT,
-                    price INTEGER,
-                    rooms TEXT,
-                    area INTEGER,
-                    city TEXT,
-                    address TEXT,
-                    images TEXT
-                )
-            """)
-            conn.commit()
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("DROP TABLE IF EXISTS ads CASCADE")
+                cur.execute("DROP TABLE IF EXISTS users CASCADE")
+                cur.execute("DROP TABLE IF EXISTS pending_listings CASCADE")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS ads (
+                        link TEXT PRIMARY KEY,
+                        source TEXT,
+                        city TEXT,
+                        price INTEGER,
+                        rooms INTEGER,
+                        address TEXT,
+                        image TEXT,
+                        description TEXT,
+                        user_id INTEGER
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY,
+                        first_name TEXT,
+                        last_name TEXT
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS pending_listings (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER,
+                        title TEXT,
+                        description TEXT,
+                        price INTEGER,
+                        rooms TEXT,
+                        area INTEGER,
+                        city TEXT,
+                        address TEXT,
+                        images TEXT
+                    )
+                """)
+                conn.commit()
+                logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
 
 init_db()
 
@@ -276,21 +281,24 @@ class OnlinerParser:
         return price_valid and rooms_valid
 
 def store_ads(ads: List[Dict]):
-    with psycopg2.connect(DATABASE_URL) as conn:
-        with conn.cursor() as cur:
-            for ad in ads:
-                try:
-                    cur.execute(
-                        """
-                        INSERT INTO ads (link, source, city, price, rooms, address, image, description, user_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (link) DO NOTHING
-                        """,
-                        (ad["link"], ad["source"], ad["city"], ad["price"], ad["rooms"], ad["address"], ad["image"], ad["description"], ad.get("user_id"))
-                    )
-                except Exception as e:
-                    logger.error(f"Ошибка сохранения объявления: {e}")
-            conn.commit()
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                for ad in ads:
+                    try:
+                        cur.execute(
+                            """
+                            INSERT INTO ads (link, source, city, price, rooms, address, image, description, user_id)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (link) DO NOTHING
+                            """,
+                            (ad["link"], ad["source"], ad["city"], ad["price"], ad["rooms"], ad["address"], ad["image"], ad["description"], ad.get("user_id"))
+                        )
+                    except Exception as e:
+                        logger.error(f"Ошибка сохранения объявления: {e}")
+                conn.commit()
+    except Exception as e:
+        logger.error(f"Ошибка подключения к базе данных: {e}")
 
 async def fetch_and_store_ads():
     for city in CITIES.keys():
@@ -325,95 +333,106 @@ def get_ads():
     kufar_offset = request.args.get('kufar_offset', default=0, type=int)
     onliner_offset = request.args.get('onliner_offset', default=0, type=int)
 
-    with psycopg2.connect(DATABASE_URL) as conn:
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            query = "SELECT * FROM ads WHERE 1=1"
-            params = []
-            if city:
-                query += " AND city = %s"
-                params.append(city)
-            if min_price is not None:
-                query += " AND price >= %s"
-                params.append(min_price)
-            if max_price is not None:
-                query += " AND price <= %s"
-                params.append(max_price)
-            if rooms is not None:
-                query += " AND rooms = %s"
-                params.append(rooms)
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                query = "SELECT * FROM ads WHERE 1=1"
+                params = []
+                if city:
+                    query += " AND city = %s"
+                    params.append(city)
+                if min_price is not None:
+                    query += " AND price >= %s"
+                    params.append(min_price)
+                if max_price is not None:
+                    query += " AND price <= %s"
+                    params.append(max_price)
+                if rooms is not None:
+                    query += " AND rooms = %s"
+                    params.append(rooms)
 
-            cur.execute(query, params)
-            all_ads = cur.fetchall()
+                cur.execute(query, params)
+                all_ads = cur.fetchall()
 
-            kufar_ads = [ad for ad in all_ads if ad["source"] == "Kufar"]
-            onliner_ads = [ad for ad in all_ads if ad["source"] == "Onliner"]
+                kufar_ads = [ad for ad in all_ads if ad["source"] == "Kufar"]
+                onliner_ads = [ad for ad in all_ads if ad["source"] == "Onliner"]
 
-            kufar_limit = KUFAR_LIMIT if kufar_offset == 0 else 2
-            onliner_limit = ONLINER_LIMIT if onliner_offset == 0 else 2
+                kufar_limit = KUFAR_LIMIT if kufar_offset == 0 else 2
+                onliner_limit = ONLINER_LIMIT if onliner_offset == 0 else 2
 
-            kufar_slice = kufar_ads[kufar_offset:kufar_offset + kufar_limit]
-            onliner_slice = onliner_ads[onliner_offset:onliner_offset + onliner_limit]
+                kufar_slice = kufar_ads[kufar_offset:kufar_offset + kufar_limit]
+                onliner_slice = onliner_ads[onliner_offset:onliner_offset + onliner_limit]
 
-            result = kufar_slice + onliner_slice
-            has_more_kufar = len(kufar_ads) > kufar_offset + kufar_limit
-            has_more_onliner = len(onliner_ads) > onliner_offset + onliner_limit
-            has_more = has_more_kufar or has_more_onliner
+                result = kufar_slice + onliner_slice
+                has_more_kufar = len(kufar_ads) > kufar_offset + kufar_limit
+                has_more_onliner = len(onliner_ads) > onliner_offset + onliner_limit
+                has_more = has_more_kufar or has_more_onliner
 
-            for ad in result:
-                ad['has_more'] = has_more
-                ad['kufar_offset'] = kufar_offset + len(kufar_slice) if kufar_slice else kufar_offset
-                ad['onliner_offset'] = onliner_offset + len(onliner_slice) if onliner_slice else onliner_offset
+                for ad in result:
+                    ad['has_more'] = has_more
+                    ad['kufar_offset'] = kufar_offset + len(kufar_slice) if kufar_slice else kufar_offset
+                    ad['onliner_offset'] = onliner_offset + len(onliner_slice) if onliner_slice else onliner_offset
 
-            return jsonify(result)
+                return jsonify(result)
+    except Exception as e:
+        logger.error(f"Ошибка в /api/ads: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
 
 @app.route('/api/register_user', methods=['POST'])
 def register_user():
     data = request.json
-    with psycopg2.connect(DATABASE_URL) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO users (id, first_name, last_name) VALUES (%s, %s, %s) ON CONFLICT (id) DO NOTHING",
-                (data['user_id'], data['first_name'], data['last_name'])
-            )
-            conn.commit()
-    return jsonify({"status": "success"})
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO users (id, first_name, last_name) VALUES (%s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                    (data['user_id'], data['first_name'], data['last_name'])
+                )
+                conn.commit()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Ошибка в /api/register_user: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
 
 @app.route('/api/add_listing', methods=['POST'])
 async def add_listing():
-    user_id = request.form.get('user_id')
-    title = request.form.get('title')
-    description = request.form.get('description')
-    price = int(request.form.get('price'))
-    rooms = request.form.get('rooms')
-    area = request.form.get('area')
-    city = request.form.get('city')
-    address = request.form.get('address')
-    images = ','.join([file.filename for file in request.files.getlist('file')]) if 'file' in request.files else ''
+    try:
+        user_id = request.form.get('user_id')
+        title = request.form.get('title')
+        description = request.form.get('description')
+        price = int(request.form.get('price'))
+        rooms = request.form.get('rooms')
+        area = request.form.get('area')
+        city = request.form.get('city')
+        address = request.form.get('address')
+        images = ','.join([file.filename for file in request.files.getlist('file')]) if 'file' in request.files else ''
 
-    with psycopg2.connect(DATABASE_URL) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO pending_listings (user_id, title, description, price, rooms, area, city, address, images)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-                """,
-                (user_id, title, description, price, rooms, area, city, address, images)
-            )
-            listing_id = cur.fetchone()[0]
-            conn.commit()
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO pending_listings (user_id, title, description, price, rooms, area, city, address, images)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+                    """,
+                    (user_id, title, description, price, rooms, area, city, address, images)
+                )
+                listing_id = cur.fetchone()[0]
+                conn.commit()
 
-    # Отправка на модерацию
-    bot = Application.builder().token(TELEGRAM_TOKEN).build().bot
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Принять", callback_data=f"approve_{listing_id}"),
-         InlineKeyboardButton("Отклонить", callback_data=f"reject_{listing_id}")]
-    ])
-    await bot.send_message(
-        chat_id=ADMIN_ID,
-        text=f"Новое объявление:\n{title}\n{description}\nЦена: ${price}\nКомнаты: {rooms}\nПлощадь: {area} м²\nГород: {city}\nАдрес: {address}",
-        reply_markup=keyboard
-    )
-    return jsonify({"status": "pending"})
+        bot = Application.builder().token(TELEGRAM_TOKEN).build().bot
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Принять", callback_data=f"approve_{listing_id}"),
+             InlineKeyboardButton("Отклонить", callback_data=f"reject_{listing_id}")]
+        ])
+        await bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"Новое объявление:\n{title}\n{description}\nЦена: ${price}\nКомнаты: {rooms}\nПлощадь: {area} м²\nГород: {city}\nАдрес: {address}",
+            reply_markup=keyboard
+        )
+        return jsonify({"status": "pending"})
+    except Exception as e:
+        logger.error(f"Ошибка в /api/add_listing: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
 
 class ApartmentBot:
     def __init__(self):
@@ -439,28 +458,31 @@ class ApartmentBot:
         data = query.data
         await query.answer()
 
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                if data.startswith("approve_"):
-                    listing_id = int(data.split("_")[1])
-                    cur.execute("SELECT * FROM pending_listings WHERE id = %s", (listing_id,))
-                    listing = cur.fetchone()
-                    if listing:
-                        cur.execute(
-                            """
-                            INSERT INTO ads (link, source, city, price, rooms, address, image, description, user_id)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            """,
-                            (f"user_listing_{listing_id}", "User", listing[7], listing[4], listing[5], listing[8], listing[9], listing[3], listing[1])
-                        )
+        try:
+            with psycopg2.connect(DATABASE_URL) as conn:
+                with conn.cursor() as cur:
+                    if data.startswith("approve_"):
+                        listing_id = int(data.split("_")[1])
+                        cur.execute("SELECT * FROM pending_listings WHERE id = %s", (listing_id,))
+                        listing = cur.fetchone()
+                        if listing:
+                            cur.execute(
+                                """
+                                INSERT INTO ads (link, source, city, price, rooms, address, image, description, user_id)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """,
+                                (f"user_listing_{listing_id}", "User", listing[7], listing[4], listing[5], listing[8], listing[9], listing[3], listing[1])
+                            )
+                            cur.execute("DELETE FROM pending_listings WHERE id = %s", (listing_id,))
+                            conn.commit()
+                            await query.edit_message_text("Объявление одобрено и добавлено!")
+                    elif data.startswith("reject_"):
+                        listing_id = int(data.split("_")[1])
                         cur.execute("DELETE FROM pending_listings WHERE id = %s", (listing_id,))
                         conn.commit()
-                        await query.edit_message_text("Объявление одобрено и добавлено!")
-                elif data.startswith("reject_"):
-                    listing_id = int(data.split("_")[1])
-                    cur.execute("DELETE FROM pending_listings WHERE id = %s", (listing_id,))
-                    conn.commit()
-                    await query.edit_message_text("Объявление отклонено.")
+                        await query.edit_message_text("Объявление отклонено.")
+        except Exception as e:
+            logger.error(f"Ошибка в handle_callback: {e}")
 
     def run(self):
         loop = asyncio.new_event_loop()
@@ -470,12 +492,16 @@ class ApartmentBot:
 
 @app.route('/mini-app')
 def mini_app():
-    with open("mini_app.html", "r", encoding="utf-8") as f:
-        return f.read()
+    try:
+        with open("mini_app.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        logger.error("mini_app.html not found")
+        return "Mini App HTML not found", 500
 
 async def run_flask():
     config = Config()
-    config.bind = ["0.0.0.0:5000"]
+    config.bind = ["0.0.0.0:" + os.environ.get("PORT", "5000")]
     config.debug = True
     await hypercorn.asyncio.serve(app, config)
 
