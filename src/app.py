@@ -20,7 +20,6 @@ import hypercorn.asyncio
 from hypercorn.config import Config
 import psycopg2
 from psycopg2.extras import DictCursor
-import threading
 
 # Настройки
 TELEGRAM_TOKEN = "7846698102:AAFR2bhmjAkPiV-PjtnFIu_oRnzxYPP1xVo"
@@ -443,15 +442,15 @@ async def add_listing():
         return jsonify({"error": "Internal Server Error"}), 500
 
 class ApartmentBot:
-    def __init__(self):
-        self.application = Application.builder().token(TELEGRAM_TOKEN).build()
+    def __init__(self, application: Application):
+        self.application = application
         self._setup_handlers()
 
     def _setup_handlers(self):
         self.application.add_handler(CommandHandler("start", self.start))
         self.application.add_handler(CallbackQueryHandler(self.handle_callback))
 
-    async def _setup_commands(self):
+    async def setup_commands(self):
         commands = [BotCommand("start", "Запустить поиск квартир")]
         await self.application.bot.set_my_commands(commands)
 
@@ -492,12 +491,6 @@ class ApartmentBot:
         except Exception as e:
             logger.error(f"Ошибка в handle_callback: {e}")
 
-    def run(self):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(self._setup_commands())
-        self.application.run_polling(allowed_updates=Update.ALL_TYPES)
-
 @app.route('/mini-app')
 def mini_app():
     # Логируем текущую директорию и содержимое
@@ -512,25 +505,31 @@ def mini_app():
         logger.error(f"mini_app.html not found: {e}")
         return "Mini App HTML not found", 500
 
-async def run_flask():
-    config = Config()
-    config.bind = ["0.0.0.0:" + os.environ.get("PORT", "5000")]
-    config.debug = True
-    await hypercorn.asyncio.serve(app, config)
-
-def start_bot():
-    bot = ApartmentBot()
-    bot.run()
-
 async def main():
+    # Инициализация Telegram бота
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    bot = ApartmentBot(application)
+    await bot.setup_commands()
+
+    # Инициализация планировщика
     scheduler = AsyncIOScheduler()
     scheduler.add_job(fetch_and_store_ads, 'interval', minutes=PARSE_INTERVAL)
     scheduler.start()
+
+    # Выполняем первый парсинг
     await fetch_and_store_ads()
-    bot_thread = threading.Thread(target=start_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
-    await run_flask()
+
+    # Запускаем Flask и Telegram бот в одном цикле событий
+    config = Config()
+    config.bind = ["0.0.0.0:" + os.environ.get("PORT", "5000")]
+    config.debug = True
+
+    # Создаем задачи для Flask и Telegram бота
+    flask_task = asyncio.create_task(hypercorn.asyncio.serve(app, config))
+    bot_task = asyncio.create_task(application.run_polling(allowed_updates=Update.ALL_TYPES))
+
+    # Ждем завершения обеих задач
+    await asyncio.gather(flask_task, bot_task)
 
 if __name__ == "__main__":
     asyncio.run(main())
