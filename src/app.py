@@ -489,7 +489,7 @@ class ApartmentBot:
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Открыть поиск квартир", web_app={"url": "https://jake-1-92l9.onrender.com/mini-app"})]
+            [InlineKeyboardButton("Открыть поиск квартир", web_app={"url": "https://jake-2.onrender.com/mini-app"})]
         ])
         await update.message.reply_text("Добро пожаловать! Откройте приложение для поиска квартир:", reply_markup=keyboard)
 
