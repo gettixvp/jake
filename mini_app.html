@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поиск Квартир</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow-x: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        body.light-theme {
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        body.dark-theme {
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+        }
+
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .unread-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: #ff4444;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .image-upload {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .image-upload:hover {
+            border-color: #0088cc;
+            background-color: rgba(0, 136, 204, 0.05);
+        }
+        
+        .preview-image {
+            position: relative;
+            margin: 5px;
+        }
+        
+        .remove-image {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: #ff4444;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .safe-area {
+            padding-top: var(--tg-safe-area-inset-top, 0px);
+            padding-bottom: var(--tg-safe-area-inset-bottom, 0px);
+            padding-left: var(--tg-safe-area-inset-left, 0px);
+            padding-right: var(--tg-safe-area-inset-right, 0px);
+            min-height: var(--tg-viewport-stable-height, 100vh);
+        }
+    </style>
+</head>
+<body class="light-theme">
+    <div class="max-w-md mx-auto h-screen flex flex-col safe-area">
+        <div class="flex-1 overflow-y-auto">
+            <div id="home-tab" class="tab-content active p-4">
+                <div class="mb-6">
+                    <h2 class="text-lg font-semibold mb-2">Добро пожаловать в Поиск Квартир</h2>
+                    <p class="text-gray-600 mb-4">
+                        Найдите идеальную квартиру в Беларуси с помощью нашей удобной платформы. 
+                        Ищите среди тысяч объявлений или добавьте свое собственное.
+                    </p>
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                        <h3 class="font-medium text-blue-800 mb-2">Быстрый поиск</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Диапазон цен ($)</label>
+                                <div class="flex space-x-2">
+                                    <input type="number" id="min-price" placeholder="Мин" class="w-1/2 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <input type="number" id="max-price" placeholder="Макс" class="w-1/2 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Комнаты</label>
+                                <select id="rooms" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">Любое</option>
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4+">4+</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Город</label>
+                                <select id="city" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">Все города</option>
+                                    <option value="minsk">Минск</option>
+                                    <option value="brest">Брест</option>
+                                    <option value="vitebsk">Витебск</option>
+                                    <option value="gomel">Гомель</option>
+                                    <option value="grodno">Гродно</option>
+                                    <option value="mogilev">Могилев</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button id="search-btn" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition duration-300 flex items-center justify-center">
+                            <i class="fas fa-search mr-2"></i> Поиск
+                        </button>
+                    </div>
+                </div>
+                <div id="search-results" class="hidden">
+                    <h3 class="text-lg font-semibold mb-3">Результаты поиска</h3>
+                    <div id="results-container" class="space-y-4"></div>
+                </div>
+                <div class="mt-6">
+                    <h3 class="text-lg font-semibold mb-2">Популярные объявления</h3>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div class="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300">
+                            <div class="h-40 bg-gray-200 flex items-center justify-center">
+                                <i class="fas fa-home text-gray-400 text-4xl"></i>
+                            </div>
+                            <div class="p-3">
+                                <h4 class="font-medium">2-комнатная квартира в Минске</h4>
+                                <p class="text-gray-600 text-sm">$850/месяц</p>
+                                <div class="flex items-center mt-2 text-sm text-gray-500">
+                                    <i class="fas fa-map-marker-alt mr-1"></i>
+                                    <span>Минск, пр-т Независимости</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300">
+                            <div class="h-40 bg-gray-200 flex items-center justify-center">
+                                <i class="fas fa-home text-gray-400 text-4xl"></i>
+                            </div>
+                            <div class="p-3">
+                                <h4 class="font-medium">1-комнатная квартира в Бресте</h4>
+                                <p class="text-gray-600 text-sm">$450/месяц</p>
+                                <div class="flex items-center mt-2 text-sm text-gray-500">
+                                    <i class="fas fa-map-marker-alt mr-1"></i>
+                                    <span>Брест, ул. Советская</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="new-tab" class="tab-content p-4">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold">Новые объявления</h2>
+                    <span id="new-badge" class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">3 новых</span>
+                </div>
+                <div class="space-y-4">
+                    <!-- Динамические данные -->
+                </div>
+            </div>
+            <div id="user-tab" class="tab-content p-4">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold">Ваши объявления</h2>
+                    <button id="add-listing-btn" class="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-md text-sm transition duration-300 flex items-center">
+                        <i class="fas fa-plus mr-1"></i> Добавить
+                    </button>
+                </div>
+                <div id="user-listings" class="space-y-4">
+                    <div class="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300">
+                        <div class="h-40 bg-gray-200 flex items-center justify-center">
+                            <i class="fas fa-home text-gray-400 text-4xl"></i>
+                        </div>
+                        <div class="p-3">
+                            <h4 class="font-medium">Ваша 2-комнатная квартира</h4>
+                            <p class="text-gray-600 text-sm">$800/месяц</p>
+                            <div class="flex items-center mt-2 text-sm text-gray-500">
+                                <i class="fas fa-map-marker-alt mr-1"></i>
+                                <span>Минск, ул. Якуба Коласа</span>
+                            </div>
+                            <div class="mt-2 flex justify-between">
+                                <span class="text-sm bg-green-100 text-green-800 px-2 py-1 rounded">Активно</span>
+                                <div class="flex space-x-2">
+                                    <button class="text-blue-500 hover:text-blue-700"><i class="fas fa-edit"></i></button>
+                                    <button class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="add-listing-form" class="hidden mt-4">
+                    <h3 class="text-lg font-semibold mb-3">Добавить новое объявление</h3>
+                    <form id="listing-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Название</label>
+                            <input type="text" name="title" required class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Описание</label>
+                            <textarea name="description" rows="3" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Цена ($)</label>
+                            <input type="number" name="price" required class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Комнаты</label>
+                            <select name="rooms" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4+">4+</option>
+                                <option value="studio">Студия</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Площадь (м²)</label>
+                            <input type="number" name="area" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Город</label>
+                            <select name="city" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="minsk">Минск</option>
+                                <option value="brest">Брест</option>
+                                <option value="vitebsk">Витебск</option>
+                                <option value="gomel">Гомель</option>
+                                <option value="grodno">Гродно</option>
+                                <option value="mogilev">Могилев</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Адрес</label>
+                            <input type="text" name="address" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Фото</label>
+                            <div id="image-upload" class="image-upload">
+                                <i class="fas fa-camera text-gray-400 text-2xl mb-2"></i>
+                                <p class="text-gray-500">Нажмите для загрузки фото</p>
+                                <input type="file" id="file-input" name="file" accept="image/*" multiple class="hidden">
+                            </div>
+                            <div id="preview-container" class="flex flex-wrap mt-2"></div>
+                        </div>
+                        <div class="flex space-x-3">
+                            <button type="submit" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition duration-300">
+                                Отправить
+                            </button>
+                            <button type="button" id="cancel-btn" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded-md transition duration-300">
+                                Отмена
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div id="profile-tab" class="tab-content p-4">
+                <div class="flex flex-col items-center mb-6">
+                    <div class="relative mb-3">
+                        <div id="profile-photo" class="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
+                            <i class="fas fa-user text-blue-500 text-3xl" id="profile-icon"></i>
+                        </div>
+                    </div>
+                    <h2 class="text-xl font-semibold" id="profile-name">Пользователь</h2>
+                    <p class="text-gray-500">Пользователь Telegram</p>
+                </div>
+                <div class="space-y-4">
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <h3 class="font-medium text-gray-800 mb-2">Ваша активность</h3>
+                        <div class="flex justify-between text-sm text-gray-600">
+                            <div>
+                                <p class="font-medium">Объявления</p>
+                                <p>1 активно</p>
+                            </div>
+                            <div>
+                                <p class="font-medium">Избранное</p>
+                                <p>3 сохранено</p>
+                            </div>
+                            <div>
+                                <p class="font-medium">Сообщения</p>
+                                <p>2 непрочитанных</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <h3 class="font-medium text-gray-800 mb-2">Настройки</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span>Уведомления</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                                </label>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span>Темный режим</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="dark-mode-toggle" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="w-full bg-red-50 text-red-500 py-2 px-4 rounded-md border border-red-100 hover:bg-red-100 transition duration-300">
+                        Выйти
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white border-t border-gray-200 flex justify-around py-2">
+            <button class="tab-btn flex flex-col items-center px-4 py-2 text-blue-500" data-tab="home-tab">
+                <i class="fas fa-home text-lg"></i>
+                <span class="text-xs mt-1">Главная</span>
+            </button>
+            <button class="tab-btn flex flex-col items-center px-4 py-2 text-gray-500 relative" data-tab="new-tab">
+                <i class="fas fa-bell text-lg"></i>
+                <span class="text-xs mt-1">Новые</span>
+                <span class="unread-badge">3</span>
+            </button>
+            <button class="tab-btn flex flex-col items-center px-4 py-2 text-gray-500" data-tab="user-tab">
+                <i class="fas fa-list text-lg"></i>
+                <span class="text-xs mt-1">Мои объявления</span>
+            </button>
+            <button class="tab-btn flex flex-col items-center px-4 py-2 text-gray-500" data-tab="profile-tab">
+                <i class="fas fa-user text-lg"></i>
+                <span class="text-xs mt-1">Профиль</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            tg.requestFullscreen();
+            tg.onEvent('fullscreenChanged', () => console.log('Fullscreen:', tg.isFullscreen));
+            tg.onEvent('viewportChanged', (event) => {
+                if (event.isStateStable) {
+                    document.querySelector('.safe-area').style.minHeight = `${tg.viewportStableHeight}px`;
+                }
+            });
+
+            // Исправление вкладок
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    tabButtons.forEach(btn => {
+                        btn.classList.remove('text-blue-500');
+                        btn.classList.add('text-gray-500');
+                    });
+                    tabContents.forEach(content => content.classList.remove('active'));
+
+                    button.classList.remove('text-gray-500');
+                    button.classList.add('text-blue-500');
+                    const tabId = button.getAttribute('data-tab');
+                    const targetContent = document.getElementById(tabId);
+                    if (targetContent) {
+                        targetContent.classList.add('active');
+                    } else {
+                        console.error(`Tab content with ID ${tabId} not found`);
+                    }
+
+                    if (tabId === 'new-tab') {
+                        document.getElementById('new-badge').classList.add('hidden');
+                    }
+                });
+            });
+        });
+
+        function applyTheme() {
+            const isDark = tg.colorScheme === 'dark' || document.getElementById('dark-mode-toggle').checked;
+            document.body.classList.toggle('dark-theme', isDark);
+            document.body.classList.toggle('light-theme', !isDark);
+        }
+        tg.onEvent('themeChanged', applyTheme);
+        document.getElementById('dark-mode-toggle').addEventListener('change', applyTheme);
+        applyTheme();
+
+        function hapticFeedback() {
+            tg.HapticFeedback.impactOccurred('medium');
+        }
+        document.querySelectorAll('button, .tab-btn, .image-upload').forEach(el => el.addEventListener('click', hapticFeedback));
+
+        document.getElementById('search-btn').addEventListener('click', async () => {
+            const minPrice = document.getElementById('min-price').value;
+            const maxPrice = document.getElementById('max-price').value;
+            const rooms = document.getElementById('rooms').value;
+            const city = document.getElementById('city').value;
+
+            const params = new URLSearchParams();
+            if (minPrice) params.append('min_price', minPrice);
+            if (maxPrice) params.append('max_price', maxPrice);
+            if (rooms) params.append('rooms', rooms);
+            if (city) params.append('city', city);
+
+            const response = await fetch(`/api/ads?${params.toString()}`);
+            const ads = await response.json();
+
+            const resultsContainer = document.getElementById('results-container');
+            resultsContainer.innerHTML = '';
+            ads.forEach(ad => {
+                const div = document.createElement('div');
+                div.className = 'border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300';
+                div.innerHTML = `
+                    <div class="h-40 bg-gray-200 flex items-center justify-center">
+                        ${ad.image ? `<img src="${ad.image}" class="h-full w-full object-cover">` : '<i class="fas fa-home text-gray-400 text-4xl"></i>'}
+                    </div>
+                    <div class="p-3">
+                        <h4 class="font-medium">${ad.description}</h4>
+                        <p class="text-gray-600 text-sm">$${ad.price}/месяц</p>
+                        <div class="flex items-center mt-2 text-sm text-gray-500">
+                            <i class="fas fa-map-marker-alt mr-1"></i>
+                            <span>${ad.address}</span>
+                        </div>
+                    </div>
+                `;
+                resultsContainer.appendChild(div);
+            });
+
+            document.getElementById('search-results').classList.remove('hidden');
+            document.getElementById('search-results').scrollIntoView({ behavior: 'smooth' });
+        });
+
+        document.getElementById('add-listing-btn').addEventListener('click', () => {
+            document.getElementById('add-listing-form').classList.remove('hidden');
+            document.getElementById('user-listings').classList.add('hidden');
+        });
+        
+        document.getElementById('cancel-btn').addEventListener('click', () => {
+            document.getElementById('add-listing-form').classList.add('hidden');
+            document.getElementById('user-listings').classList.remove('hidden');
+        });
+
+        const imageUpload = document.getElementById('image-upload');
+        const fileInput = document.getElementById('file-input');
+        const previewContainer = document.getElementById('preview-container');
+        
+        imageUpload.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', () => {
+            previewContainer.innerHTML = '';
+            for (const file of fileInput.files) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const previewDiv = document.createElement('div');
+                    previewDiv.className = 'preview-image';
+                    previewDiv.innerHTML = `
+                        <img src="${e.target.result}" class="h-20 w-20 object-cover rounded">
+                        <div class="remove-image">×</div>
+                    `;
+                    previewDiv.querySelector('.remove-image').addEventListener('click', () => previewDiv.remove());
+                    previewContainer.appendChild(previewDiv);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        document.getElementById('listing-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            formData.append('user_id', tg.initDataUnsafe.user.id);
+            const response = await fetch('/api/add_listing', {
+                method: 'POST',
+                body: formData
+            });
+            if (response.ok) {
+                alert('Объявление отправлено на модерацию');
+                e.target.reset();
+                document.getElementById('add-listing-form').classList.add('hidden');
+                document.getElementById('user-listings').classList.remove('hidden');
+            }
+        });
+
+        const user = tg.initDataUnsafe.user;
+        document.getElementById('profile-name').textContent = `${user.first_name} ${user.last_name || ''}`;
+        if (user.photo_url) {
+            document.getElementById('profile-icon').style.display = 'none';
+            document.getElementById('profile-photo').style.backgroundImage = `url(${user.photo_url})`;
+            document.getElementById('profile-photo').style.backgroundSize = 'cover';
+        }
+
+        fetch('/api/register_user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: user.id, first_name: user.first_name, last_name: user.last_name || '' })
+        });
+    </script>
+</body>
+</html>
