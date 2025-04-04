@@ -20,6 +20,7 @@ import hypercorn.asyncio
 from hypercorn.config import Config
 import psycopg2
 from psycopg2.extras import DictCursor
+import threading
 
 # Настройки
 TELEGRAM_TOKEN = "7846698102:AAFR2bhmjAkPiV-PjtnFIu_oRnzxYPP1xVo"
@@ -204,10 +205,13 @@ class OnlinerParser:
 
         chrome_options = Options()
         chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument(f"user-agent={USER_AGENT}")
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        chrome_options.binary_location = "/usr/bin/google-chrome"  # Указываем путь к Chrome
 
         try:
+            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
             driver.get(url)
             time.sleep(5)
             soup = BeautifulSoup(driver.page_source, "html.parser")
@@ -237,8 +241,12 @@ class OnlinerParser:
             logger.info(f"Parsed {len(results)} valid ads from Onliner")
         except Exception as e:
             logger.error(f"Ошибка загрузки страницы Onliner: {e}")
+            return results  # Возвращаем пустой список, чтобы не прерывать выполнение
         finally:
-            driver.quit()
+            try:
+                driver.quit()
+            except:
+                pass
         return results
 
     @staticmethod
