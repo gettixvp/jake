@@ -12,7 +12,6 @@ from bs4 import BeautifulSoup
 import aiohttp
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 import time
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -210,7 +209,9 @@ class OnlinerParser:
         chrome_options.binary_location = "/usr/bin/google-chrome"
 
         try:
-            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+            # Use the system-installed chromedriver
+            service = Service("/usr/bin/chromedriver")  # Adjust path if necessary
+            driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.get(url)
             time.sleep(5)
             soup = BeautifulSoup(driver.page_source, "html.parser")
@@ -519,17 +520,36 @@ async def main():
     # Выполняем первый парсинг
     await fetch_and_store_ads()
 
-    # Запускаем Flask и Telegram бот в одном цикле событий
+    # Настройка Hypercorn для Flask
     config = Config()
     config.bind = ["0.0.0.0:" + os.environ.get("PORT", "5000")]
     config.debug = True
 
+    # Запускаем Flask и Telegram бот в одном цикле событий
+    loop = asyncio.get_event_loop()
+    
     # Создаем задачи для Flask и Telegram бота
-    flask_task = asyncio.create_task(hypercorn.asyncio.serve(app, config))
-    bot_task = asyncio.create_task(application.run_polling(allowed_updates=Update.ALL_TYPES))
+    flask_task = loop.create_task(hypercorn.asyncio.serve(app, config))
+    bot_task = loop.create_task(application.run_polling(allowed_updates=Update.ALL_TYPES))
 
     # Ждем завершения обеих задач
-    await asyncio.gather(flask_task, bot_task)
+    try:
+        await asyncio.gather(flask_task, bot_task)
+    except KeyboardInterrupt:
+        # При получении SIGINT (например, Ctrl+C) корректно завершаем задачи
+        flask_task.cancel()
+        bot_task.cancel()
+        await application.stop()
+        await application.shutdown()
+        scheduler.shutdown()
+        loop.stop()
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        loop.close()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Запускаем основной цикл событий
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(main())
+    finally:
+        loop.close()
