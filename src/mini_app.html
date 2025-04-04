@@ -459,42 +459,179 @@
         </div>
     </div>
 
-    :root {
-    --tg-safe-area-inset-top: 0px;
-    --tg-safe-area-inset-right: 0px;
-    --tg-safe-area-inset-bottom: 0px;
-    --tg-safe-area-inset-left: 0px;
-}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const tg = window.Telegram.WebApp;
+        tg.ready();
 
-.safe-area {
-    padding-top: var(--tg-safe-area-inset-top);
-    padding-right: var(--tg-safe-area-inset-right);
-    padding-bottom: var(--tg-safe-area-inset-bottom);
-    padding-left: var(--tg-safe-area-inset-left);
-    min-height: calc(var(--tg-viewport-stable-height, 100vh) - var(--tg-safe-area-inset-top) - var(--tg-safe-area-inset-bottom));
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    height: calc(var(--tg-viewport-stable-height, 100vh) - var(--tg-safe-area-inset-top) - var(--tg-safe-area-inset-bottom));
-}
+        if (!tg.initDataUnsafe || !tg.initDataUnsafe.user) {
+            document.body.innerHTML = '<p>Not running inside Telegram Web App environment.</p>';
+            return;
+        }
 
-.content-wrapper {
-    flex-grow: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-}
+        // Автоматический вход в полноэкранный режим
+        if (!tg.isFullscreen) {
+            tg.requestFullscreen();
+            console.log('Requested fullscreen mode on startup');
+        }
 
-#fullscreen-btn {
-    z-index: 20;
-    transition: all 0.2s ease;
-}
+        // Существующий код поиска
+        const searchBtn = document.getElementById('search-btn');
+        const resultsContainer = document.getElementById('results-container');
+        const searchResults = document.getElementById('search-results');
 
-#fullscreen-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
-}
+        searchBtn.addEventListener('click', async () => {
+            const minPrice = document.getElementById('min-price').value;
+            const maxPrice = document.getElementById('max-price').value;
+            const rooms = document.getElementById('rooms').value;
+            const city = document.getElementById('city').value;
 
-#fullscreen-btn:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
+            const params = new URLSearchParams();
+            if (minPrice) params.append('min_price', minPrice);
+            if (maxPrice) params.append('max_price', maxPrice);
+            if (rooms) params.append('rooms', rooms);
+            if (city) params.append('city', city);
+
+            try {
+                searchBtn.disabled = true;
+                searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Поиск...';
+
+                const response = await fetch(`/api/ads?${params.toString()}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) throw new Error('Network response was not ok');
+
+                const data = await response.json();
+                displayResults(data.ads);
+                searchResults.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error fetching ads:', error);
+                resultsContainer.innerHTML = '<p class="text-red-500">Ошибка при загрузке объявлений.</p>';
+                searchResults.classList.remove('hidden');
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<i class="fas fa-search mr-2"></i> Найти';
+            }
+        });
+
+        // Отображение результатов поиска
+        function displayResults(ads) {
+            if (!ads || ads.length === 0) {
+                resultsContainer.innerHTML = '<p class="text-soft-gray text-center p-5">Объявления не найдены.</p>';
+                return;
+            }
+
+            resultsContainer.innerHTML = '';
+            ads.forEach(ad => {
+                const card = document.createElement('div');
+                card.className = 'apartment-card soft-card shadow-soft';
+                card.innerHTML = `
+                    <div class="h-48 bg-gradient-to-br from-soft-primary to-soft-secondary flex items-center justify-center">
+                        <i class="fas fa-home text-white text-5xl opacity-70"></i>
+                    </div>
+                    <div class="p-4">
+                        <h4 class="font-semibold text-soft-dark">${ad.description || 'Без названия'}</h4>
+                        <p class="text-soft-primary text-lg font-bold mt-1">$${ad.price} <span class="text-sm font-normal text-soft-gray">/месяц</span></p>
+                        <div class="flex items-center mt-2 text-sm text-soft-gray">
+                            <i class="fas fa-map-marker-alt mr-2 text-soft-info w-4 text-center"></i>
+                            <span>${ad.city || 'Не указан'}, ${ad.address || 'Адрес не указан'}</span>
+                        </div>
+                        <div class="mt-2 flex items-center text-sm text-soft-gray">
+                            <i class="fas fa-bed mr-2 text-soft-info w-4 text-center"></i>
+                            <span>${ad.rooms || 'Не указано'}</span>
+                        </div>
+                        <a href="${ad.link}" target="_blank" class="mt-3 inline-block text-soft-primary hover:text-soft-secondary text-sm">Подробнее</a>
+                    </div>
+                `;
+                resultsContainer.appendChild(card);
+            });
+        }
+
+        // Кнопка для выхода из полноэкранного режима
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.id = 'fullscreen-btn';
+        fullscreenBtn.className = 'soft-btn bg-soft-primary text-white py-2 px-4 rounded-xl text-sm flex items-center font-medium absolute top-4 right-4';
+        fullscreenBtn.innerHTML = '<i class="fas fa-compress mr-2"></i> Выход из полного экрана';
+        document.querySelector('.safe-area').appendChild(fullscreenBtn);
+
+        // Обработка нажатия на кнопку
+        fullscreenBtn.addEventListener('click', () => {
+            if (tg.isFullscreen) {
+                tg.exitFullscreen();
+            } else {
+                tg.requestFullscreen();
+            }
+        });
+
+        // Обновление текста кнопки в зависимости от состояния
+        function updateFullscreenButton() {
+            if (tg.isFullscreen) {
+                fullscreenBtn.innerHTML = '<i class="fas fa-compress mr-2"></i> Выход из полного экрана';
+            } else {
+                fullscreenBtn.innerHTML = '<i class="fas fa-expand mr-2"></i> На весь экран';
+            }
+        }
+
+        // Обработка событий полноэкранного режима
+        tg.onEvent('fullscreenChanged', () => {
+            console.log('Fullscreen state changed:', tg.isFullscreen);
+            updateFullscreenButton();
+            adjustSafeArea();
+        });
+
+        tg.onEvent('fullscreenFailed', () => {
+            console.error('Failed to enter fullscreen mode');
+            alert('Не удалось включить полноэкранный режим. Попробуйте снова.');
+            updateFullscreenButton();
+        });
+
+        // Обработка изменения safe area
+        tg.onEvent('safeAreaChanged', () => {
+            console.log('Safe Area changed:', tg.safeAreaInset);
+            adjustSafeArea();
+        });
+
+        tg.onEvent('contentSafeAreaChanged', () => {
+            console.log('Content Safe Area changed:', tg.contentSafeAreaInset);
+            adjustSafeArea();
+        });
+
+        // Функция для адаптации контента под safe area
+        function adjustSafeArea() {
+            const safeArea = tg.safeAreaInset || {};
+            const contentSafeArea = tg.contentSafeAreaInset || {};
+
+            document.documentElement.style.setProperty('--tg-safe-area-inset-top', `${safeArea.top || 0}px`);
+            document.documentElement.style.setProperty('--tg-safe-area-inset-right', `${safeArea.right || 0}px`);
+            document.documentElement.style.setProperty('--tg-safe-area-inset-bottom', `${safeArea.bottom || 0}px`);
+            document.documentElement.style.setProperty('--tg-safe-area-inset-left', `${safeArea.left || 0}px`);
+
+            const contentWrapper = document.querySelector('.content-wrapper');
+            if (contentWrapper) {
+                contentWrapper.style.paddingTop = `${contentSafeArea.top || safeArea.top || 0}px`;
+                contentWrapper.style.paddingRight = `${contentSafeArea.right || safeArea.right || 0}px`;
+                contentWrapper.style.paddingBottom = `calc(60px + ${contentSafeArea.bottom || safeArea.bottom || 0}px)`;
+                contentWrapper.style.paddingLeft = `${contentSafeArea.left || safeArea.left || 0}px`;
+            }
+        }
+
+        // Инициализация safe area при загрузке
+        adjustSafeArea();
+
+        // Существующая логика переключения вкладок
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.getAttribute('data-tab');
+                tabContents.forEach(content => content.classList.remove('active'));
+                tabButtons.forEach(btn => btn.classList.remove('text-soft-primary'));
+                document.getElementById(tabId).classList.add('active');
+                button.classList.add('text-soft-primary');
+            });
+        });
+    });
+</script>
