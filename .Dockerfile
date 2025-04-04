@@ -1,9 +1,25 @@
 FROM python:3.9-slim
 
+# Устанавливаем зависимости для Chromedriver и Chrome
 RUN apt-get update && apt-get install -y \
     wget \
     unzip \
     curl \
+    libglib2.0-0 \
+    libnss3 \
+    libgconf-2-4 \
+    libfontconfig1 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxi6 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxrandr2 \
+    libxrender1 \
+    libxtst6 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем Chrome for Testing и Chromedriver
