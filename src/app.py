@@ -210,7 +210,7 @@ class OnlinerParser:
 
         try:
             # Use the system-installed chromedriver
-            service = Service("/usr/bin/chromedriver")  # Adjust path if necessary
+            service = Service("/usr/local/bin/chromedriver")  # Updated path
             driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.get(url)
             time.sleep(5)
