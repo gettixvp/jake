@@ -29,10 +29,8 @@ RUN wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-
     && dpkg -i /tmp/google-chrome.deb \
     && rm /tmp/google-chrome.deb
 
-# Install Chromedriver
-RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+') \
-    && CHROMEDRIVER_VERSION=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION") \
-    && wget -q -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip" \
+# Install Chromedriver (specific version for Chrome 135.0.7049.52)
+RUN wget -q -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/135.0.7049.52/chromedriver_linux64.zip" \
     && unzip /tmp/chromedriver.zip -d /usr/bin/ \
     && chmod +x /usr/bin/chromedriver \
     && rm /tmp/chromedriver.zip
