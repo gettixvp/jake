@@ -238,7 +238,7 @@ class ApartmentParser:
             logger.exception(f"Unexpected error fetching/parsing Kufar for {city}: {e}")
 
         logger.info(f"Parsed {len(results)} ads from Kufar for {city}.")
-        return results[:KUFAR_LIMIT]  # Ограничиваем количество
+        return results[:KUFAR_LIMIT]
 
     @staticmethod
     def _parse_price(ad) -> Optional[int]:
@@ -402,7 +402,7 @@ class OnlinerParser:
             logger.exception(f"Unexpected error fetching/parsing Onliner for {city}: {e}")
 
         logger.info(f"Parsed {len(results)} ads from Onliner for {city}.")
-        return results[:ONLINER_LIMIT]  # Ограничиваем количество
+        return results[:ONLINER_LIMIT]
 
     @staticmethod
     def _parse_price(ad) -> Optional[int]:
@@ -992,10 +992,17 @@ async def main():
     logger.info(f"Hypercorn configured for 0.0.0.0:{port}")
 
     logger.info("Starting Telegram bot polling and Hypercorn server...")
-    await asyncio.gather(
-        application.run_polling(allowed_updates=Update.ALL_TYPES),
-        hypercorn.asyncio.serve(app, config)
-    )
+    
+    polling_task = asyncio.create_task(application.run_polling(allowed_updates=Update.ALL_TYPES))
+    hypercorn_task = asyncio.create_task(hypercorn.asyncio.serve(app, config))
+
+    try:
+        await asyncio.gather(polling_task, hypercorn_task)
+    except asyncio.CancelledError:
+        logger.info("Received shutdown signal, stopping tasks...")
+        polling_task.cancel()
+        hypercorn_task.cancel()
+        await asyncio.gather(polling_task, hypercorn_task, return_exceptions=True)
 
     logger.info("Shutting down scheduler...")
     if scheduler.running:
@@ -1004,8 +1011,18 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            logger.critical("Event loop is already running unexpectedly.")
+            exit(1)
+        loop.run_until_complete(main())
     except KeyboardInterrupt:
         logger.info("Application stopped manually (KeyboardInterrupt).")
+        for task in asyncio.all_tasks(loop):
+            task.cancel()
+        loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True))
+        loop.close()
     except Exception as e:
         logger.critical(f"Application exited with critical error: {e}", exc_info=True)
+        if not loop.is_closed():
+            loop.close()
