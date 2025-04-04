@@ -208,7 +208,7 @@ class OnlinerParser:
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument(f"user-agent={USER_AGENT}")
-        chrome_options.binary_location = "/usr/bin/google-chrome"  # Указываем путь к Chrome
+        chrome_options.binary_location = "/usr/bin/google-chrome"
 
         try:
             driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
@@ -241,7 +241,7 @@ class OnlinerParser:
             logger.info(f"Parsed {len(results)} valid ads from Onliner")
         except Exception as e:
             logger.error(f"Ошибка загрузки страницы Onliner: {e}")
-            return results  # Возвращаем пустой список, чтобы не прерывать выполнение
+            return results
         finally:
             try:
                 driver.quit()
@@ -500,11 +500,16 @@ class ApartmentBot:
 
 @app.route('/mini-app')
 def mini_app():
+    # Логируем текущую директорию и содержимое
+    current_dir = os.getcwd()
+    logger.info(f"Current working directory: {current_dir}")
+    logger.info(f"Files in current directory: {os.listdir(current_dir)}")
+    
     try:
         with open("mini_app.html", "r", encoding="utf-8") as f:
             return f.read()
-    except FileNotFoundError:
-        logger.error("mini_app.html not found")
+    except FileNotFoundError as e:
+        logger.error(f"mini_app.html not found: {e}")
         return "Mini App HTML not found", 500
 
 async def run_flask():
