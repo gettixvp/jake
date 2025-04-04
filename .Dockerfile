@@ -28,6 +28,7 @@ RUN CHROME_VERSION="135.0.7049.52" \
     && unzip /tmp/chrome-linux64.zip -d /usr/local/bin/ \
     && mv /usr/local/bin/chrome-linux64/chrome /usr/local/bin/google-chrome \
     && chmod +x /usr/local/bin/google-chrome \
+    && ln -sf /usr/local/bin/google-chrome /usr/bin/google-chrome \
     && rm -rf /tmp/chrome-linux64.zip \
     && wget -q -O /tmp/chromedriver-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" \
     && unzip /tmp/chromedriver-linux64.zip -d /usr/local/bin/ \
