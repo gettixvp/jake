@@ -1,6 +1,7 @@
 FROM python:3.9-slim
 
-# Устанавливаем зависимости для Chromedriver и Chrome
+WORKDIR /app
+
 RUN apt-get update && apt-get install -y \
     wget \
     unzip \
@@ -9,38 +10,33 @@ RUN apt-get update && apt-get install -y \
     libnss3 \
     libgconf-2-4 \
     libfontconfig1 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxi6 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxrandr2 \
     libxrender1 \
     libxtst6 \
-    libasound2 \
+    libxi6 \
+    libxss1 \
+    fonts-liberation \
+    libappindicator3-1 \
+    xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем Chrome for Testing и Chromedriver
-RUN CHROME_VERSION="135.0.7049.52" \
-    && wget -q -O /tmp/chrome-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chrome-linux64.zip" \
-    && unzip /tmp/chrome-linux64.zip -d /usr/local/bin/ \
-    && mv /usr/local/bin/chrome-linux64/chrome /usr/local/bin/google-chrome \
-    && chmod +x /usr/local/bin/google-chrome \
-    && ln -sf /usr/local/bin/google-chrome /usr/bin/google-chrome \
-    && rm -rf /tmp/chrome-linux64.zip \
-    && wget -q -O /tmp/chromedriver-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" \
-    && unzip /tmp/chromedriver-linux64.zip -d /usr/local/bin/ \
-    && mv /usr/local/bin/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm -rf /tmp/chromedriver-linux64.zip
+RUN wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && dpkg -i /tmp/google-chrome.deb || apt-get install -f -y \
+    && rm /tmp/google-chrome.deb
 
-WORKDIR /app
+RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+') \
+    && CHROMEDRIVER_VERSION=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION") \
+    && wget -q -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip" \
+    && unzip /tmp/chromedriver.zip -d /usr/bin/ \
+    && chmod +x /usr/bin/chromedriver \
+    && rm /tmp/chromedriver.zip
 
-COPY src/ .
 COPY requirements.txt .
+COPY src/ .
+COPY mini_app.html .
+COPY favicon.ico .
 
 RUN pip install --no-cache-dir -r requirements.txt
+
+EXPOSE 10000
 
 CMD ["python", "app.py"]
