@@ -5,6 +5,7 @@ import urllib.parse
 import os
 import datetime
 import random
+import time
 from typing import List, Dict, Optional
 from flask import Flask, request, jsonify, send_from_directory
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
@@ -18,7 +19,6 @@ import hypercorn.asyncio
 from hypercorn.config import Config
 import psycopg2
 from psycopg2.extras import DictCursor
-import threading
 
 # --- Configuration ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7846698102:AAFR2bhmjAkPiV-PjtnFIu_oRnzxYPP1xVo")
@@ -822,16 +822,6 @@ def mini_app_route():
     logger.info(f"Serving {html_file} from {root_dir}")
     return send_from_directory(root_dir, html_file)
 
-@app.route('/favicon.ico')
-def favicon():
-    root_dir = os.path.dirname(os.path.abspath(__file__))
-    favicon_path = os.path.join(root_dir, 'favicon.ico')
-    if not os.path.exists(favicon_path):
-        logger.warning(f"Favicon not found at: {favicon_path}")
-        return "Favicon not found", 404
-    logger.debug(f"Serving favicon from {favicon_path}")
-    return send_from_directory(root_dir, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
-
 # --- Telegram Bot Class ---
 class ApartmentBot:
     def __init__(self, application: Application):
@@ -1001,31 +991,16 @@ async def main():
     config.errorlog = logger
     logger.info(f"Hypercorn configured for 0.0.0.0:{port}")
 
-    logger.info("Starting Telegram bot polling thread...")
-    def run_bot():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            application.run_polling(allowed_updates=Update.ALL_TYPES)
-        finally:
-            loop.close()
+    logger.info("Starting Telegram bot polling and Hypercorn server...")
+    await asyncio.gather(
+        application.run_polling(allowed_updates=Update.ALL_TYPES),
+        hypercorn.asyncio.serve(app, config)
+    )
 
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    bot_thread.start()
-
-    logger.info("Starting Hypercorn ASGI server...")
-    server_task = asyncio.create_task(hypercorn.asyncio.serve(app, config))
-
-    try:
-        await server_task
-    except asyncio.CancelledError:
-        logger.info("Server task cancelled.")
-    finally:
-        logger.info("Shutting down scheduler...")
-        if scheduler.running:
-            scheduler.shutdown(wait=False)
-        logger.info("Stopping PTB application...")
-        logger.info("--- Application Shutdown Complete ---")
+    logger.info("Shutting down scheduler...")
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
+    logger.info("--- Application Shutdown Complete ---")
 
 if __name__ == "__main__":
     try:
