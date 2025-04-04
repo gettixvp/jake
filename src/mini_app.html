@@ -2,131 +2,328 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Поиск Квартир</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"> <title>Поиск Квартир</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script> <script>
+        // Конфигурация Tailwind CSS
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        soft: {
+                            primary: '#6366f1',      // Основной цвет (Индиго)
+                            secondary: '#8b5cf6',    // Вторичный цвет (Фиолетовый)
+                            dark: '#1e293b',         // Темно-синий (для текста/фона в темной теме)
+                            light: '#f8fafc',        // Очень светлый серый (фон светлой темы)
+                            gray: '#94a3b8',         // Средний серый (для текста)
+                            success: '#10b981',      // Зеленый (Успех)
+                            warning: '#f59e0b',      // Оранжевый (Предупреждение)
+                            danger: '#ef4444',       // Красный (Опасность/Ошибка)
+                            info: '#3b82f6'          // Синий (Информация)
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px rgba(0, 0, 0, 0.08)',
+                        'soft-lg': '0 10px 30px rgba(0, 0, 0, 0.12)',
+                        'soft-xl': '0 15px 40px rgba(0, 0, 0, 0.15)'
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
-        
+        /* Импорт шрифта Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        /* Базовые стили */
         body {
-            font-family: 'Roboto', sans-serif;
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            overflow-x: hidden;
-            transition: background-color 0.3s, color 0.3s;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--tg-theme-bg-color, #f8fafc); /* Используем цвет фона Telegram */
+            color: var(--tg-theme-text-color, #1e293b);        /* Используем цвет текста Telegram */
+            transition: background-color 0.3s ease, color 0.3s ease;
+            margin: 0; /* Убираем отступы по умолчанию */
+            overscroll-behavior: none; /* Предотвращаем "оттягивание" страницы */
         }
 
-        body.light-theme {
-            background-color: #f5f5f5;
-            color: #333;
+        /* Стили для темной темы (если Telegram API не определило переменные) */
+        body.dark {
+            background-color: #1e293b;
+            color: #f8fafc;
+        }
+        body.dark .soft-card {
+            background: rgba(45, 55, 72, 0.85); /* Немного темнее фона, чуть менее прозрачный */
+            border: 1px solid rgba(71, 85, 105, 0.5); /* Добавим легкую границу */
+            color: #f8fafc;
+        }
+        body.dark .soft-input {
+            background: rgba(45, 55, 72, 0.7);
+            color: #f8fafc;
+            border-color: #4b5563;
+        }
+        body.dark .soft-input::placeholder {
+             color: #9ca3af; /* Плейсхолдер в темной теме */
+        }
+        body.dark .soft-input:focus {
+             background: #374151;
+             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+        }
+        body.dark .text-soft-dark {
+            color: var(--tg-theme-text-color, #f8fafc); /* Синхронизация с Telegram */
+        }
+        body.dark .text-soft-gray {
+            color: #9ca3af;
+        }
+        /* Переопределяем цвета текста, чтобы они соответствовали теме Telegram */
+        .text-soft-dark { color: var(--tg-theme-text-color, #1e293b); }
+        .text-soft-gray { color: var(--tg-theme-hint-color, #94a3b8); } /* Цвет подсказки Telegram */
+        .text-soft-primary { color: var(--tg-theme-button-color, #6366f1); } /* Основная кнопка Telegram */
+
+        /* Стили карточек, кнопок, инпутов */
+        .soft-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px); /* Для Safari */
+            border-radius: 12px;
+            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid transparent; /* Для плавного перехода границы в темной теме */
+        }
+        .soft-btn {
+            transition: all 0.2s ease; /* Ускорим анимацию кнопок */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+        .soft-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        .soft-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); /* Меньше тень при нажатии */
+        }
+        .soft-input {
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 12px; /* Скруглим инпуты как карточки */
+        }
+        .soft-input:focus {
+            background: white;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            border-color: transparent; /* Убираем стандартную границу при фокусе */
         }
 
-        body.dark-theme {
-            background-color: #1a1a1a;
-            color: #e0e0e0;
-        }
-
+        /* Стили для вкладок */
         .tab-content {
             display: none;
+            animation: fadeIn 0.3s ease-out; /* Используем ease-out для появления */
         }
-        
         .tab-content.active {
             display: block;
         }
-        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Бейдж непрочитанных */
         .unread-badge {
             position: absolute;
-            top: -5px;
-            right: -5px;
-            background-color: #ff4444;
-            color: white;
+            top: -4px;  /* Чуть выше */
+            right: -4px; /* Чуть правее */
+            background-color: var(--tg-theme-destructive-text-color, #ef4444); /* Красный цвет Telegram */
+            color: white; /* Цвет текста внутри бейджа обычно белый */
             border-radius: 50%;
             width: 18px;
             height: 18px;
             font-size: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            line-height: 18px; /* Вертикальное выравнивание текста */
+            text-align: center;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            /* display: flex; align-items: center; justify-content: center; */ /* Можно и так */
         }
-        
+
+        /* Загрузка изображений */
         .image-upload {
-            border: 2px dashed #ccc;
-            border-radius: 8px;
+            border: 2px dashed var(--tg-theme-hint-color, #cbd5e1); /* Граница цветом подсказки */
+            border-radius: 12px;
             padding: 20px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
+            background: rgba(148, 163, 184, 0.05); /* Очень легкий фон */
         }
-        
+        body.dark .image-upload {
+            border-color: #4b5563;
+            background: rgba(71, 85, 105, 0.1);
+        }
         .image-upload:hover {
-            border-color: #0088cc;
-            background-color: rgba(0, 136, 204, 0.05);
+            border-color: var(--tg-theme-button-color, #6366f1);
+            background-color: rgba(99, 102, 241, 0.08);
         }
-        
+        body.dark .image-upload:hover {
+            background-color: rgba(99, 102, 241, 0.15);
+         }
         .preview-image {
             position: relative;
             margin: 5px;
         }
-        
         .remove-image {
             position: absolute;
-            top: -5px;
-            right: -5px;
-            background-color: #ff4444;
+            top: -7px;
+            right: -7px;
+            background-color: var(--tg-theme-destructive-text-color, #ef4444);
             color: white;
             border-radius: 50%;
             width: 20px;
             height: 20px;
-            display: flex;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex; /* Используем flex для центрирования крестика */
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.5); /* Тонкая белая граница для контраста */
+        }
+        .remove-image:hover {
+            background-color: #dc2626; /* Темнее при наведении */
         }
 
+        /* Карточка объявления */
+        .apartment-card {
+            transition: all 0.3s ease;
+            border-radius: 12px; /* Добавим скругление */
+            overflow: hidden;   /* Скроем вылезающие части изображения */
+        }
+        .apartment-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--tg-theme-bg-color, white) 0px 0px 0px 0px, var(--tg-theme-bg-color, white) 0px 0px 0px 0px, rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.1) 0px 4px 6px -4px; /* Используем Tailwind тень lg */
+        }
+         body.dark .apartment-card:hover {
+             box-shadow: var(--tg-theme-bg-color, black) 0px 0px 0px 0px, var(--tg-theme-bg-color, black) 0px 0px 0px 0px, rgba(255, 255, 255, 0.1) 0px 10px 15px -3px, rgba(255, 255, 255, 0.1) 0px 4px 6px -4px; /* Светлая тень в темной теме */
+         }
+
+        /* Адаптация под Telegram */
         .safe-area {
             padding-top: var(--tg-safe-area-inset-top, 0px);
-            padding-bottom: var(--tg-safe-area-inset-bottom, 0px);
             padding-left: var(--tg-safe-area-inset-left, 0px);
             padding-right: var(--tg-safe-area-inset-right, 0px);
+            /* padding-bottom НЕ НУЖЕН здесь, если низ фиксированный */
             min-height: var(--tg-viewport-stable-height, 100vh);
+            box-sizing: border-box;
+            display: flex; /* Используем flex для управления высотой */
+            flex-direction: column;
+            height: var(--tg-viewport-stable-height, 100vh); /* Задаем жесткую высоту */
         }
+        .content-wrapper {
+            flex-grow: 1; /* Занимает все доступное пространство */
+            overflow-y: auto; /* Позволяет скроллить контент */
+            padding-bottom: calc(60px + var(--tg-safe-area-inset-bottom, 10px)); /* Отступ снизу под меню + запас */
+            -webkit-overflow-scrolling: touch; /* Плавный скролл на iOS */
+        }
+        .bottom-nav {
+            position: fixed; /* Фиксированное меню */
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            background-color: var(--tg-theme-secondary-bg-color, white); /* Цвет фона вторичный Telegram */
+            border-top: 1px solid var(--tg-theme-hint-color, #e5e7eb); /* Граница цветом подсказки */
+            padding-bottom: var(--tg-safe-area-inset-bottom, 0px); /* Учитываем нижнюю безопасную зону */
+            height: calc(60px + var(--tg-safe-area-inset-bottom, 0px)); /* Адаптивная высота меню */
+            box-sizing: content-box;
+            box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.05); /* Тень сверху */
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start; /* Выравниваем иконки по верху */
+            padding-top: 6px; /* Небольшой отступ сверху внутри меню */
+        }
+         body.dark .bottom-nav {
+             background-color: #1f2937; /* Темный фон для нижнего меню */
+             border-top-color: #374151; /* Темнее граница */
+         }
+        .tab-btn { /* Стили кнопок вкладок */
+             color: var(--tg-theme-hint-color, #94a3b8); /* Неактивная кнопка цветом подсказки */
+             transition: color 0.2s ease;
+        }
+         .tab-btn.text-soft-primary {
+             color: var(--tg-theme-button-color, #6366f1); /* Активная кнопка цветом основной кнопки */
+         }
+         .tab-btn i { font-size: 20px; } /* Чуть больше иконки */
+         .tab-btn span { font-size: 10px; margin-top: 2px; font-weight: 500; } /* Меньше текст, чуть жирнее */
+
+         /* Стили для переключателя (Toggle) */
+         .toggle-checkbox:checked + .toggle-label {
+             background-color: var(--tg-theme-button-color, #6366f1); /* Цвет фона активного переключателя */
+         }
+         .toggle-checkbox:checked + .toggle-label::after {
+             transform: translateX(100%);
+         }
+         .toggle-label {
+             width: 44px; /* Ширина переключателя */
+             height: 24px; /* Высота */
+             border-radius: 9999px;
+             background-color: #e5e7eb; /* Фон неактивного */
+             cursor: pointer;
+             position: relative;
+             transition: background-color 0.2s ease;
+             display: inline-block;
+         }
+         body.dark .toggle-label {
+             background-color: #4b5563; /* Фон неактивного в темной теме */
+         }
+         .toggle-label::after { /* Кружок */
+             content: '';
+             position: absolute;
+             width: 20px; /* Размер кружка */
+             height: 20px;
+             border-radius: 50%;
+             background-color: white;
+             top: 2px;
+             left: 2px;
+             transition: transform 0.2s ease;
+             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+         }
+
     </style>
 </head>
-<body class="light-theme">
-    <div class="max-w-md mx-auto h-screen flex flex-col safe-area">
-        <div class="flex-1 overflow-y-auto">
+<body class="bg-soft-light">
+    <div class="max-w-md mx-auto safe-area">
+        <div class="content-wrapper">
             <div id="home-tab" class="tab-content active p-4">
                 <div class="mb-6">
-                    <h2 class="text-lg font-semibold mb-2">Добро пожаловать в Поиск Квартир</h2>
-                    <p class="text-gray-600 mb-4">
-                        Найдите идеальную квартиру в Беларуси с помощью нашей удобной платформы. 
-                        Ищите среди тысяч объявлений или добавьте свое собственное.
-                    </p>
-                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                        <h3 class="font-medium text-blue-800 mb-2">Быстрый поиск</h3>
-                        <div class="space-y-3">
+                    <div class="soft-card p-6 mb-6 shadow-soft">
+                        <h2 class="text-xl font-semibold text-soft-dark mb-3">Добро пожаловать!</h2>
+                        <p class="text-soft-gray mb-4 text-sm">
+                            Найдите идеальную квартиру в Беларуси. Ищите или добавляйте свои объявления.
+                        </p>
+                    </div>
+
+                    <div class="soft-card p-6 shadow-soft mb-6">
+                        <h3 class="text-lg font-semibold text-soft-dark mb-4">Быстрый поиск</h3>
+                        <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Диапазон цен ($)</label>
-                                <div class="flex space-x-2">
-                                    <input type="number" id="min-price" placeholder="Мин" class="w-1/2 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                    <input type="number" id="max-price" placeholder="Макс" class="w-1/2 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <label class="block text-sm font-medium text-soft-dark mb-1">Цена ($)</label>
+                                <div class="flex space-x-3">
+                                    <input type="number" id="min-price" placeholder="от" class="soft-input w-1/2 p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
+                                    <input type="number" id="max-price" placeholder="до" class="soft-input w-1/2 p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Комнаты</label>
-                                <select id="rooms" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                    <option value="">Любое</option>
+                                <label class="block text-sm font-medium text-soft-dark mb-1">Комнаты</label>
+                                <select id="rooms" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
+                                    <option value="">Любое количество</option>
                                     <option value="1">1</option>
                                     <option value="2">2</option>
                                     <option value="3">3</option>
                                     <option value="4+">4+</option>
+                                    <option value="studio">Студия</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Город</label>
-                                <select id="city" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <label class="block text-sm font-medium text-soft-dark mb-1">Город</label>
+                                <select id="city" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
                                     <option value="">Все города</option>
                                     <option value="minsk">Минск</option>
                                     <option value="brest">Брест</option>
@@ -137,382 +334,698 @@
                                 </select>
                             </div>
                         </div>
-                        <button id="search-btn" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition duration-300 flex items-center justify-center">
-                            <i class="fas fa-search mr-2"></i> Поиск
+                        <button id="search-btn" class="soft-btn mt-6 w-full bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-3 px-4 rounded-xl flex items-center justify-center font-semibold">
+                            <i class="fas fa-search mr-2"></i> Найти
                         </button>
                     </div>
                 </div>
-                <div id="search-results" class="hidden">
-                    <h3 class="text-lg font-semibold mb-3">Результаты поиска</h3>
-                    <div id="results-container" class="space-y-4"></div>
+
+                <div id="search-results" class="hidden mb-6">
+                    <h3 class="text-lg font-semibold text-soft-dark mb-4">Результаты поиска</h3>
+                    <div id="results-container" class="space-y-4">
+                       <div class="text-center text-soft-gray p-5 text-sm">Заполните форму и нажмите "Найти".</div>
+                    </div>
                 </div>
+
                 <div class="mt-6">
-                    <h3 class="text-lg font-semibold mb-2">Популярные объявления</h3>
+                    <h3 class="text-lg font-semibold text-soft-dark mb-4">Популярные</h3>
                     <div class="grid grid-cols-1 gap-4">
-                        <div class="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300">
-                            <div class="h-40 bg-gray-200 flex items-center justify-center">
-                                <i class="fas fa-home text-gray-400 text-4xl"></i>
+                        <div class="apartment-card soft-card shadow-soft">
+                            <div class="h-48 bg-gradient-to-br from-soft-primary to-soft-secondary flex items-center justify-center">
+                                <i class="fas fa-city text-white text-5xl opacity-70"></i>
                             </div>
-                            <div class="p-3">
-                                <h4 class="font-medium">2-комнатная квартира в Минске</h4>
-                                <p class="text-gray-600 text-sm">$850/месяц</p>
-                                <div class="flex items-center mt-2 text-sm text-gray-500">
-                                    <i class="fas fa-map-marker-alt mr-1"></i>
+                            <div class="p-4">
+                                <h4 class="font-semibold text-soft-dark">2-комн. квартира в Минске</h4>
+                                <p class="text-soft-primary text-lg font-bold mt-1">$850 <span class="text-sm font-normal text-soft-gray">/месяц</span></p>
+                                <div class="flex items-center mt-2 text-sm text-soft-gray">
+                                    <i class="fas fa-map-marker-alt mr-2 text-soft-info w-4 text-center"></i>
                                     <span>Минск, пр-т Независимости</span>
                                 </div>
+                                <div class="mt-2 flex items-center text-sm text-soft-gray">
+                                    <i class="fas fa-ruler-combined mr-2 text-soft-info w-4 text-center"></i>
+                                    <span>65 м²</span>
+                                    <i class="fas fa-bed ml-4 mr-2 text-soft-info w-4 text-center"></i>
+                                    <span>2 комнаты</span>
+                                </div>
                             </div>
                         </div>
-                        <div class="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300">
-                            <div class="h-40 bg-gray-200 flex items-center justify-center">
-                                <i class="fas fa-home text-gray-400 text-4xl"></i>
-                            </div>
-                            <div class="p-3">
-                                <h4 class="font-medium">1-комнатная квартира в Бресте</h4>
-                                <p class="text-gray-600 text-sm">$450/месяц</p>
-                                <div class="flex items-center mt-2 text-sm text-gray-500">
-                                    <i class="fas fa-map-marker-alt mr-1"></i>
+                        <div class="apartment-card soft-card shadow-soft">
+                             <div class="h-48 bg-gradient-to-br from-soft-warning to-soft-danger flex items-center justify-center">
+                                <i class="fas fa-building text-white text-5xl opacity-70"></i>
+                             </div>
+                            <div class="p-4">
+                                <h4 class="font-semibold text-soft-dark">1-комн. квартира в Бресте</h4>
+                                <p class="text-soft-primary text-lg font-bold mt-1">$450 <span class="text-sm font-normal text-soft-gray">/месяц</span></p>
+                                <div class="flex items-center mt-2 text-sm text-soft-gray">
+                                    <i class="fas fa-map-marker-alt mr-2 text-soft-info w-4 text-center"></i>
                                     <span>Брест, ул. Советская</span>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div id="new-tab" class="tab-content p-4">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-semibold">Новые объявления</h2>
-                    <span id="new-badge" class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">3 новых</span>
-                </div>
-                <div class="space-y-4">
-                    <!-- Динамические данные -->
-                </div>
-            </div>
-            <div id="user-tab" class="tab-content p-4">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-semibold">Ваши объявления</h2>
-                    <button id="add-listing-btn" class="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-md text-sm transition duration-300 flex items-center">
-                        <i class="fas fa-plus mr-1"></i> Добавить
-                    </button>
-                </div>
-                <div id="user-listings" class="space-y-4">
-                    <div class="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300">
-                        <div class="h-40 bg-gray-200 flex items-center justify-center">
-                            <i class="fas fa-home text-gray-400 text-4xl"></i>
-                        </div>
-                        <div class="p-3">
-                            <h4 class="font-medium">Ваша 2-комнатная квартира</h4>
-                            <p class="text-gray-600 text-sm">$800/месяц</p>
-                            <div class="flex items-center mt-2 text-sm text-gray-500">
-                                <i class="fas fa-map-marker-alt mr-1"></i>
-                                <span>Минск, ул. Якуба Коласа</span>
-                            </div>
-                            <div class="mt-2 flex justify-between">
-                                <span class="text-sm bg-green-100 text-green-800 px-2 py-1 rounded">Активно</span>
-                                <div class="flex space-x-2">
-                                    <button class="text-blue-500 hover:text-blue-700"><i class="fas fa-edit"></i></button>
-                                    <button class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>
+                                <div class="mt-2 flex items-center text-sm text-soft-gray">
+                                     <i class="fas fa-ruler-combined mr-2 text-soft-info w-4 text-center"></i>
+                                     <span>42 м²</span>
+                                     <i class="fas fa-bed ml-4 mr-2 text-soft-info w-4 text-center"></i>
+                                     <span>1 комната</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div id="add-listing-form" class="hidden mt-4">
-                    <h3 class="text-lg font-semibold mb-3">Добавить новое объявление</h3>
-                    <form id="listing-form" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Название</label>
-                            <input type="text" name="title" required class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Описание</label>
-                            <textarea name="description" rows="3" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Цена ($)</label>
-                            <input type="number" name="price" required class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Комнаты</label>
-                            <select name="rooms" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4+">4+</option>
-                                <option value="studio">Студия</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Площадь (м²)</label>
-                            <input type="number" name="area" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Город</label>
-                            <select name="city" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                <option value="minsk">Минск</option>
-                                <option value="brest">Брест</option>
-                                <option value="vitebsk">Витебск</option>
-                                <option value="gomel">Гомель</option>
-                                <option value="grodno">Гродно</option>
-                                <option value="mogilev">Могилев</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Адрес</label>
-                            <input type="text" name="address" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Фото</label>
-                            <div id="image-upload" class="image-upload">
-                                <i class="fas fa-camera text-gray-400 text-2xl mb-2"></i>
-                                <p class="text-gray-500">Нажмите для загрузки фото</p>
-                                <input type="file" id="file-input" name="file" accept="image/*" multiple class="hidden">
-                            </div>
-                            <div id="preview-container" class="flex flex-wrap mt-2"></div>
-                        </div>
-                        <div class="flex space-x-3">
-                            <button type="submit" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition duration-300">
-                                Отправить
-                            </button>
-                            <button type="button" id="cancel-btn" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded-md transition duration-300">
-                                Отмена
-                            </button>
-                        </div>
-                    </form>
-                </div>
             </div>
-            <div id="profile-tab" class="tab-content p-4">
-                <div class="flex flex-col items-center mb-6">
-                    <div class="relative mb-3">
-                        <div id="profile-photo" class="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
-                            <i class="fas fa-user text-blue-500 text-3xl" id="profile-icon"></i>
-                        </div>
-                    </div>
-                    <h2 class="text-xl font-semibold" id="profile-name">Пользователь</h2>
-                    <p class="text-gray-500">Пользователь Telegram</p>
+
+            <div id="new-tab" class="tab-content p-4">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-semibold text-soft-dark">Новые объявления</h2>
+                    <span id="new-badge" class="bg-red-500 text-white text-xs px-2 py-1 rounded-full hidden">3</span>
                 </div>
-                <div class="space-y-4">
-                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <h3 class="font-medium text-gray-800 mb-2">Ваша активность</h3>
-                        <div class="flex justify-between text-sm text-gray-600">
-                            <div>
-                                <p class="font-medium">Объявления</p>
-                                <p>1 активно</p>
-                            </div>
-                            <div>
-                                <p class="font-medium">Избранное</p>
-                                <p>3 сохранено</p>
-                            </div>
-                            <div>
-                                <p class="font-medium">Сообщения</p>
-                                <p>2 непрочитанных</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <h3 class="font-medium text-gray-800 mb-2">Настройки</h3>
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <span>Уведомления</span>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" class="sr-only peer" checked>
-                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
-                                </label>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span>Темный режим</span>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="dark-mode-toggle" class="sr-only peer">
-                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="w-full bg-red-50 text-red-500 py-2 px-4 rounded-md border border-red-100 hover:bg-red-100 transition duration-300">
-                        Выйти
+                <div class="space-y-4" id="new-listings">
+                     <div class="text-center text-soft-gray p-5 text-sm">Нет новых объявлений для вас.</div>
+                     </div>
+            </div>
+
+            <div id="user-tab" class="tab-content p-4">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-semibold text-soft-dark">Мои объявления</h2>
+                    <button id="add-listing-btn" class="soft-btn bg-soft-primary text-white py-2 px-4 rounded-xl text-sm flex items-center font-medium">
+                        <i class="fas fa-plus mr-1 text-xs"></i> Добавить
                     </button>
                 </div>
-            </div>
-        </div>
-        <div class="bg-white border-t border-gray-200 flex justify-around py-2">
-            <button class="tab-btn flex flex-col items-center px-4 py-2 text-blue-500" data-tab="home-tab">
-                <i class="fas fa-home text-lg"></i>
-                <span class="text-xs mt-1">Главная</span>
-            </button>
-            <button class="tab-btn flex flex-col items-center px-4 py-2 text-gray-500 relative" data-tab="new-tab">
-                <i class="fas fa-bell text-lg"></i>
-                <span class="text-xs mt-1">Новые</span>
-                <span class="unread-badge">3</span>
-            </button>
-            <button class="tab-btn flex flex-col items-center px-4 py-2 text-gray-500" data-tab="user-tab">
-                <i class="fas fa-list text-lg"></i>
-                <span class="text-xs mt-1">Мои объявления</span>
-            </button>
-            <button class="tab-btn flex flex-col items-center px-4 py-2 text-gray-500" data-tab="profile-tab">
-                <i class="fas fa-user text-lg"></i>
-                <span class="text-xs mt-1">Профиль</span>
-            </button>
-        </div>
-    </div>
 
-    <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-
-        document.addEventListener('DOMContentLoaded', () => {
-            tg.requestFullscreen();
-            tg.onEvent('fullscreenChanged', () => console.log('Fullscreen:', tg.isFullscreen));
-            tg.onEvent('viewportChanged', (event) => {
-                if (event.isStateStable) {
-                    document.querySelector('.safe-area').style.minHeight = `${tg.viewportStableHeight}px`;
-                }
-            });
-
-            // Исправление вкладок
-            const tabButtons = document.querySelectorAll('.tab-btn');
-            const tabContents = document.querySelectorAll('.tab-content');
-
-            tabButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    tabButtons.forEach(btn => {
-                        btn.classList.remove('text-blue-500');
-                        btn.classList.add('text-gray-500');
-                    });
-                    tabContents.forEach(content => content.classList.remove('active'));
-
-                    button.classList.remove('text-gray-500');
-                    button.classList.add('text-blue-500');
-                    const tabId = button.getAttribute('data-tab');
-                    const targetContent = document.getElementById(tabId);
-                    if (targetContent) {
-                        targetContent.classList.add('active');
-                    } else {
-                        console.error(`Tab content with ID ${tabId} not found`);
-                    }
-
-                    if (tabId === 'new-tab') {
-                        document.getElementById('new-badge').classList.add('hidden');
-                    }
-                });
-            });
-        });
-
-        function applyTheme() {
-            const isDark = tg.colorScheme === 'dark' || document.getElementById('dark-mode-toggle').checked;
-            document.body.classList.toggle('dark-theme', isDark);
-            document.body.classList.toggle('light-theme', !isDark);
-        }
-        tg.onEvent('themeChanged', applyTheme);
-        document.getElementById('dark-mode-toggle').addEventListener('change', applyTheme);
-        applyTheme();
-
-        function hapticFeedback() {
-            tg.HapticFeedback.impactOccurred('medium');
-        }
-        document.querySelectorAll('button, .tab-btn, .image-upload').forEach(el => el.addEventListener('click', hapticFeedback));
-
-        document.getElementById('search-btn').addEventListener('click', async () => {
-            const minPrice = document.getElementById('min-price').value;
-            const maxPrice = document.getElementById('max-price').value;
-            const rooms = document.getElementById('rooms').value;
-            const city = document.getElementById('city').value;
-
-            const params = new URLSearchParams();
-            if (minPrice) params.append('min_price', minPrice);
-            if (maxPrice) params.append('max_price', maxPrice);
-            if (rooms) params.append('rooms', rooms);
-            if (city) params.append('city', city);
-
-            const response = await fetch(`/api/ads?${params.toString()}`);
-            const ads = await response.json();
-
-            const resultsContainer = document.getElementById('results-container');
-            resultsContainer.innerHTML = '';
-            ads.forEach(ad => {
-                const div = document.createElement('div');
-                div.className = 'border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition duration-300';
-                div.innerHTML = `
-                    <div class="h-40 bg-gray-200 flex items-center justify-center">
-                        ${ad.image ? `<img src="${ad.image}" class="h-full w-full object-cover">` : '<i class="fas fa-home text-gray-400 text-4xl"></i>'}
-                    </div>
-                    <div class="p-3">
-                        <h4 class="font-medium">${ad.description}</h4>
-                        <p class="text-gray-600 text-sm">$${ad.price}/месяц</p>
-                        <div class="flex items-center mt-2 text-sm text-gray-500">
-                            <i class="fas fa-map-marker-alt mr-1"></i>
-                            <span>${ad.address}</span>
+                 <div id="user-listings" class="space-y-4">
+                     <div class="apartment-card soft-card shadow-soft">
+                        <div class="h-40 bg-gradient-to-br from-soft-success to-soft-info flex items-center justify-center">
+                             <i class="fas fa-house-user text-white text-5xl opacity-70"></i>
+                        </div>
+                        <div class="p-4">
+                            <h4 class="font-semibold text-soft-dark">Ваша 2-комн. на Коласа</h4>
+                             <p class="text-soft-primary text-lg font-bold mt-1">$800 <span class="text-sm font-normal text-soft-gray">/месяц</span></p>
+                            <div class="flex items-center mt-2 text-sm text-soft-gray">
+                                <i class="fas fa-map-marker-alt mr-2 text-soft-info w-4 text-center"></i>
+                                <span>Минск, ул. Якуба Коласа</span>
+                            </div>
+                            <div class="mt-3 flex justify-between items-center">
+                                <span class="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium">
+                                    <i class="fas fa-check-circle mr-1"></i>Активно
+                                </span>
+                                <div class="flex space-x-3">
+                                    <button title="Редактировать" class="text-soft-primary hover:text-soft-secondary text-lg"><i class="fas fa-edit"></i></button>
+                                    <button title="Удалить" class="text-soft-danger hover:text-red-500 text-lg"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                `;
-                resultsContainer.appendChild(div);
+                     </div>
+
+                <div id="add-listing-form" class="hidden mt-6">
+                    <div class="soft-card p-6 shadow-soft">
+                        <h3 class="text-lg font-semibold text-soft-dark mb-5">Новое объявление</h3>
+                        <form id="listing-form" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-soft-dark mb-1">Заголовок <span class="text-red-500">*</span></label>
+                                <input type="text" name="title" required class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm" placeholder="Напр., Уютная 1-комнатная квартира">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-soft-dark mb-1">Описание</label>
+                                <textarea name="description" rows="4" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm" placeholder="Подробно опишите ваше жилье..."></textarea>
+                            </div>
+                             <div>
+                                <label class="block text-sm font-medium text-soft-dark mb-1">Цена ($/месяц) <span class="text-red-500">*</span></label>
+                                <input type="number" name="price" required class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm" placeholder="500">
+                            </div>
+                             <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-soft-dark mb-1">Комнаты <span class="text-red-500">*</span></label>
+                                    <select name="rooms" required class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
+                                        <option value="1">1</option>
+                                        <option value="2" selected>2</option>
+                                        <option value="3">3</option>
+                                        <option value="4+">4+</option>
+                                        <option value="studio">Студия</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-soft-dark mb-1">Площадь (м²)</label>
+                                    <input type="number" name="area" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm" placeholder="45">
+                                </div>
+                            </div>
+                             <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-soft-dark mb-1">Город <span class="text-red-500">*</span></label>
+                                    <select name="city" required class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
+                                        <option value="minsk" selected>Минск</option>
+                                        <option value="brest">Брест</option>
+                                        <option value="vitebsk">Витебск</option>
+                                        <option value="gomel">Гомель</option>
+                                        <option value="grodno">Гродно</option>
+                                        <option value="mogilev">Могилев</option>
+                                    </select>
+                                </div>
+                                <div>
+                                     <label class="block text-sm font-medium text-soft-dark mb-1">Адрес</label>
+                                     <input type="text" name="address" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm" placeholder="ул. Ленина, 10">
+                                </div>
+                             </div>
+                            <div>
+                                <label class="block text-sm font-medium text-soft-dark mb-1">Фотографии (до 5 шт.)</label>
+                                <div id="image-upload" class="image-upload">
+                                    <i class="fas fa-camera text-soft-gray text-2xl mb-2"></i>
+                                    <p class="text-soft-gray text-sm">Нажмите или перетащите фото сюда</p>
+                                    <input type="file" id="file-input" name="photos" accept="image/jpeg, image/png, image/webp" multiple class="hidden">
+                                </div>
+                                <div id="preview-container" class="flex flex-wrap mt-3 -mx-1"></div> </div>
+                             <div class="flex space-x-3 pt-3">
+                                <button type="submit" class="soft-btn flex-1 bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-3 px-4 rounded-xl font-semibold">
+                                    <i class="fas fa-check mr-2"></i>Опубликовать
+                                </button>
+                                <button type="button" id="cancel-btn" class="soft-btn flex-1 bg-gray-200 dark:bg-gray-600 text-soft-dark py-3 px-4 rounded-xl font-medium">
+                                    Отмена
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div id="profile-tab" class="tab-content p-4">
+                <div class="flex items-center space-x-4 mb-8">
+                    <div id="profile-photo" class="w-16 h-16 rounded-full bg-gradient-to-br from-soft-primary to-soft-secondary flex items-center justify-center overflow-hidden shadow-soft flex-shrink-0">
+                        <i class="fas fa-user text-white text-3xl" id="profile-icon"></i>
+                    </div>
+                    <div>
+                         <h2 class="text-lg font-semibold text-soft-dark leading-tight" id="profile-name">Пользователь</h2>
+                         <p class="text-sm text-soft-gray leading-tight" id="profile-username">@username</p>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-xs font-semibold text-soft-gray uppercase tracking-wider mb-3">Активность</h3>
+                    <div class="soft-card p-4 shadow-soft">
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div class="p-2">
+                                <div class="text-xl font-bold text-soft-primary" id="profile-ad-count">1</div>
+                                <div class="text-xs text-soft-gray mt-1">Объявления</div>
+                            </div>
+                            <div class="p-2">
+                                <div class="text-xl font-bold text-soft-secondary" id="profile-fav-count">3</div>
+                                <div class="text-xs text-soft-gray mt-1">Избранное</div>
+                            </div>
+                            <div class="p-2">
+                                <div class="text-xl font-bold text-soft-warning" id="profile-msg-count">2</div>
+                                <div class="text-xs text-soft-gray mt-1">Сообщения</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                     <h3 class="text-xs font-semibold text-soft-gray uppercase tracking-wider mb-3">Настройки</h3>
+                     <div class="soft-card shadow-soft divide-y divide-gray-200 dark:divide-gray-700 overflow-hidden">
+                        <div class="p-4 flex items-center justify-between">
+                            <div>
+                                <div class="text-sm font-medium text-soft-dark">Уведомления</div>
+                                <div class="text-xs text-soft-gray">Новые сообщения и объявления</div>
+                            </div>
+                             <input type="checkbox" id="notifications-toggle" class="toggle-checkbox sr-only" checked>
+                             <label for="notifications-toggle" class="toggle-label"></label>
+                        </div>
+                        <div class="p-4 flex items-center justify-between opacity-60"> <div>
+                                <div class="text-sm font-medium text-soft-dark">Темный режим</div>
+                                <div class="text-xs text-soft-gray">Синхронизация с Telegram</div>
+                            </div>
+                            <input type="checkbox" id="dark-mode-toggle" class="toggle-checkbox sr-only" disabled>
+                            <label for="dark-mode-toggle" class="toggle-label cursor-not-allowed"></label>
+                        </div>
+                    </div>
+                 </div>
+
+                <button class="soft-btn w-full bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 py-3 px-4 rounded-xl flex items-center justify-center font-medium">
+                    <i class="fas fa-sign-out-alt mr-2"></i> Выйти
+                </button>
+            </div>
+
+        </div> <div class="bottom-nav">
+            <button class="tab-btn flex flex-col items-center px-4 py-1" data-tab="home-tab">
+                <i class="fas fa-home"></i>
+                <span>Главная</span>
+            </button>
+            <button class="tab-btn flex flex-col items-center px-4 py-1 relative" data-tab="new-tab">
+                <i class="fas fa-bell"></i>
+                <span>Новые</span>
+                <span id="nav-new-badge" class="unread-badge">3</span> </button>
+            <button class="tab-btn flex flex-col items-center px-4 py-1" data-tab="user-tab">
+                <i class="fas fa-list"></i>
+                <span>Мои</span>
+            </button>
+            <button class="tab-btn flex flex-col items-center px-4 py-1" data-tab="profile-tab">
+                <i class="fas fa-user"></i>
+                <span>Профиль</span>
+            </button>
+        </div>
+    </div> <script>
+        // Проверка на запуск внутри Telegram Web App
+        if (typeof window.Telegram === 'undefined' || typeof window.Telegram.WebApp === 'undefined') {
+            // Если запуск НЕ в Telegram
+            console.error("Not running inside Telegram Web App environment.");
+            document.addEventListener('DOMContentLoaded', () => {
+                 document.body.innerHTML = `
+                    <div style="padding: 30px; text-align: center; font-family: 'Inter', sans-serif; color: #333; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #f8fafc;">
+                         <h1 style="color: #ef4444; margin-bottom: 15px;">Ошибка Загрузки</h1>
+                         <p style="color: #555; line-height: 1.6;">Это веб-приложение разработано для использования внутри Telegram.</p>
+                         <p style="color: #555; line-height: 1.6;">Пожалуйста, откройте его с помощью соответствующего бота в Telegram.</p>
+                     </div>`;
             });
+        } else {
+            // Если запуск в Telegram
+            const tg = window.Telegram.WebApp;
 
-            document.getElementById('search-results').classList.remove('hidden');
-            document.getElementById('search-results').scrollIntoView({ behavior: 'smooth' });
-        });
+            // --- Инициализация Telegram Web App ---
+            tg.ready(); // Сообщаем, что приложение готово
+            tg.expand(); // Раскрываем на весь экран
 
-        document.getElementById('add-listing-btn').addEventListener('click', () => {
-            document.getElementById('add-listing-form').classList.remove('hidden');
-            document.getElementById('user-listings').classList.add('hidden');
-        });
-        
-        document.getElementById('cancel-btn').addEventListener('click', () => {
-            document.getElementById('add-listing-form').classList.add('hidden');
-            document.getElementById('user-listings').classList.remove('hidden');
-        });
+             // Меняем цвет шапки в зависимости от темы
+             const setHeaderColor = (colorScheme) => {
+                tg.setHeaderColor(colorScheme === 'dark' ? '#1f2937' : '#6366f1');
+             };
 
-        const imageUpload = document.getElementById('image-upload');
-        const fileInput = document.getElementById('file-input');
-        const previewContainer = document.getElementById('preview-container');
-        
-        imageUpload.addEventListener('click', () => fileInput.click());
-        
-        fileInput.addEventListener('change', () => {
-            previewContainer.innerHTML = '';
-            for (const file of fileInput.files) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const previewDiv = document.createElement('div');
-                    previewDiv.className = 'preview-image';
-                    previewDiv.innerHTML = `
-                        <img src="${e.target.result}" class="h-20 w-20 object-cover rounded">
-                        <div class="remove-image">×</div>
-                    `;
-                    previewDiv.querySelector('.remove-image').addEventListener('click', () => previewDiv.remove());
-                    previewContainer.appendChild(previewDiv);
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+            // --- Глобальные переменные и константы ---
+            const MAX_UPLOAD_FILES = 5;
 
-        document.getElementById('listing-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            formData.append('user_id', tg.initDataUnsafe.user.id);
-            const response = await fetch('/api/add_listing', {
-                method: 'POST',
-                body: formData
-            });
-            if (response.ok) {
-                alert('Объявление отправлено на модерацию');
-                e.target.reset();
-                document.getElementById('add-listing-form').classList.add('hidden');
-                document.getElementById('user-listings').classList.remove('hidden');
-            }
-        });
+            // --- Основная логика после загрузки DOM ---
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log("DOM Loaded. Telegram WebApp Initialized.");
+                 console.log("Theme Params:", tg.themeParams);
+                 console.log("Color Scheme:", tg.colorScheme);
+                 console.log("Init Data (Unsafe):", tg.initDataUnsafe);
 
-        const user = tg.initDataUnsafe.user;
-        document.getElementById('profile-name').textContent = `${user.first_name} ${user.last_name || ''}`;
-        if (user.photo_url) {
-            document.getElementById('profile-icon').style.display = 'none';
-            document.getElementById('profile-photo').style.backgroundImage = `url(${user.photo_url})`;
-            document.getElementById('profile-photo').style.backgroundSize = 'cover';
-        }
 
-        fetch('/api/register_user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: user.id, first_name: user.first_name, last_name: user.last_name || '' })
-        });
+                // --- Подгонка под размер viewport ---
+                function setViewportHeight() {
+                     const vh = tg.viewportStableHeight;
+                     const safeArea = document.querySelector('.safe-area');
+                     if (safeArea && vh > 0) { // Проверяем, что высота больше 0
+                         safeArea.style.height = `${vh}px`;
+                         safeArea.style.minHeight = `${vh}px`; // Добавляем minHeight на всякий случай
+                         console.log(`Viewport Stable Height set to: ${vh}px`);
+                     } else {
+                         console.warn(`Viewport Stable Height not applied: ${vh}`);
+                     }
+                }
+                // Устанавливаем высоту сразу и подписываемся на изменения
+                setViewportHeight();
+                tg.onEvent('viewportChanged', setViewportHeight);
+
+
+                // --- Тактильная обратная связь ---
+                function hapticFeedback(style = 'light') {
+                    // Доступные стили: 'light', 'medium', 'heavy', 'rigid', 'soft'
+                    // Стили уведомлений: 'success', 'warning', 'error'
+                    if (tg.HapticFeedback) { // Проверяем поддержку
+                       try {
+                           if (['light', 'medium', 'heavy', 'rigid', 'soft'].includes(style)) {
+                               tg.HapticFeedback.impactOccurred(style);
+                           } else if (['success', 'warning', 'error'].includes(style)) {
+                               tg.HapticFeedback.notificationOccurred(style);
+                           }
+                       } catch (e) {
+                           console.warn("Haptic feedback failed:", e);
+                       }
+                    } else {
+                       // console.log("Haptic feedback not supported."); // Можно раскомментировать для отладки
+                    }
+                }
+                // Привязка тактильного отклика к элементам
+                document.querySelectorAll('button, .tab-btn, .image-upload, input[type="checkbox"] + label, select').forEach(el => {
+                    el.addEventListener('click', () => hapticFeedback('light'));
+                });
+                document.querySelectorAll('.soft-btn[type="submit"], #search-btn, #add-listing-btn').forEach(el => {
+                     el.addEventListener('click', () => hapticFeedback('medium'));
+                });
+                 document.querySelectorAll('.remove-image').forEach(el => { // Удаление фото - тоже отклик
+                     el.addEventListener('click', () => hapticFeedback('light'));
+                 });
+
+
+                // --- Обработка вкладок ---
+                const tabButtons = document.querySelectorAll('.tab-btn');
+                const tabContents = document.querySelectorAll('.tab-content');
+                const navNewBadge = document.getElementById('nav-new-badge');
+                const headerNewBadge = document.getElementById('new-badge');
+                const contentWrapper = document.querySelector('.content-wrapper');
+
+                tabButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        const previouslyActiveButton = document.querySelector('.tab-btn.text-soft-primary');
+                        const tabId = button.getAttribute('data-tab');
+                        const targetContent = document.getElementById(tabId);
+
+                        if (previouslyActiveButton === button || !targetContent) return; // Не переключать на активную или несуществующую
+
+                        // Сброс стилей предыдущей кнопки
+                         if (previouslyActiveButton) {
+                           previouslyActiveButton.classList.remove('text-soft-primary');
+                           // Не добавляем text-soft-gray, цвет по умолчанию применится из CSS
+                         }
+                        // Скрытие предыдущего контента
+                        document.querySelector('.tab-content.active')?.classList.remove('active');
+
+                        // Активация новой кнопки и контента
+                        button.classList.add('text-soft-primary');
+                        targetContent.classList.add('active');
+
+                        // Скролл контента вверх при переключении вкладки
+                        if(contentWrapper) contentWrapper.scrollTo({ top: 0, behavior: 'smooth' });
+
+                        // Логика бейджа "Новые"
+                        if (tabId === 'new-tab') {
+                            navNewBadge?.classList.add('hidden'); // Скрыть бейдж в навигации
+                            headerNewBadge?.classList.add('hidden'); // Скрыть бейдж в заголовке
+                            // TODO: Добавить логику реального "прочтения" новых объявлений
+                        }
+
+                        hapticFeedback('light');
+                    });
+                });
+
+                // --- Обработка темы ---
+                 function applyTheme() {
+                    const colorScheme = tg.colorScheme || 'light'; // 'light' или 'dark'
+                    document.body.classList.toggle('dark', colorScheme === 'dark');
+                    document.getElementById('dark-mode-toggle').checked = (colorScheme === 'dark');
+                    setHeaderColor(colorScheme); // Устанавливаем цвет шапки
+                    console.log('Theme applied:', colorScheme);
+                 }
+                 tg.onEvent('themeChanged', applyTheme);
+                 applyTheme(); // Применить тему при загрузке
+
+
+                // --- Поиск объявлений (с имитацией API) ---
+                const searchBtn = document.getElementById('search-btn');
+                const resultsContainer = document.getElementById('results-container');
+                const searchResultsSection = document.getElementById('search-results');
+
+                if (searchBtn) {
+                    searchBtn.addEventListener('click', async () => {
+                        const minPrice = document.getElementById('min-price').value;
+                        const maxPrice = document.getElementById('max-price').value;
+                        const rooms = document.getElementById('rooms').value;
+                        const city = document.getElementById('city').value;
+
+                        resultsContainer.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Ищем варианты... <i class="fas fa-spinner fa-spin ml-1"></i></div>';
+                        searchResultsSection.classList.remove('hidden');
+                        hapticFeedback('light');
+
+                        console.log('Search params:', { minPrice, maxPrice, rooms, city });
+
+                        // Имитация запроса
+                        await new Promise(resolve => setTimeout(resolve, 1200));
+
+                        // Пример данных (должны приходить с сервера)
+                        const ads = [
+                             { id: 1, title: 'Светлая 1-комнатная у метро', price: 500, address: `Минск, ул. Примерная`, image: null, rooms: 1, area: 40, city: 'minsk' },
+                             { id: 2, title: 'Просторная 3-комнатная для семьи', price: 1200, address: `Минск, пр-т Победителей`, image: null, rooms: 3, area: 85, city: 'minsk' },
+                             { id: 3, title: 'Уютная студия в центре Бреста', price: 480, address: `Брест, ул. Гоголя`, image: null, rooms: 'studio', area: 35, city: 'brest' }
+                        ];
+
+                        // Фильтрация (упрощенная, должна быть на сервере)
+                         const filteredAds = ads.filter(ad =>
+                             (!minPrice || ad.price >= parseInt(minPrice)) &&
+                             (!maxPrice || ad.price <= parseInt(maxPrice)) &&
+                             (!rooms || ad.rooms.toString() === rooms || (rooms === '4+' && ad.rooms >=4) || (rooms === 'studio' && ad.rooms === 'studio')) &&
+                             (!city || ad.city === city)
+                         );
+
+                         resultsContainer.innerHTML = ''; // Очищаем
+
+                         if (filteredAds.length > 0) {
+                             filteredAds.forEach(ad => {
+                                 const div = document.createElement('div');
+                                 div.className = 'apartment-card soft-card shadow-soft';
+                                 div.innerHTML = `
+                                    <div class="h-48 bg-gradient-to-br ${ad.city === 'brest' ? 'from-soft-warning to-soft-danger' : 'from-soft-primary to-soft-secondary'} flex items-center justify-center">
+                                        ${ad.image ? `<img src="${ad.image}" class="h-full w-full object-cover">` : `<i class="fas ${ad.rooms === 'studio' ? 'fa-person-booth' : 'fa-building'} text-white text-5xl opacity-70"></i>`}
+                                    </div>
+                                    <div class="p-4">
+                                        <h4 class="font-semibold text-soft-dark">${ad.title}</h4>
+                                         <p class="text-soft-primary text-lg font-bold mt-1">$${ad.price} <span class="text-sm font-normal text-soft-gray">/месяц</span></p>
+                                        <div class="flex items-center mt-2 text-sm text-soft-gray">
+                                            <i class="fas fa-map-marker-alt mr-2 text-soft-info w-4 text-center"></i>
+                                            <span>${ad.address}</span>
+                                        </div>
+                                        <div class="mt-2 flex items-center text-sm text-soft-gray">
+                                             <i class="fas fa-ruler-combined mr-2 text-soft-info w-4 text-center"></i>
+                                             <span>${ad.area} м²</span>
+                                             <i class="fas fa-bed ml-4 mr-2 text-soft-info w-4 text-center"></i>
+                                             <span>${ad.rooms === 'studio' ? 'Студия' : (ad.rooms + ' комн.')}</span>
+                                        </div>
+                                    </div>
+                                 `;
+                                 resultsContainer.appendChild(div);
+                             });
+                              hapticFeedback('success');
+                         } else {
+                             resultsContainer.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">По вашему запросу ничего не найдено. Попробуйте изменить параметры.</div>';
+                             hapticFeedback('warning');
+                         }
+
+                         // Прокрутка к результатам
+                         searchResultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    });
+                }
+
+
+                // --- Логика вкладки "Мои объявления" ---
+                const addListingBtn = document.getElementById('add-listing-btn');
+                const addListingFormDiv = document.getElementById('add-listing-form');
+                const userListingsDiv = document.getElementById('user-listings');
+                const cancelBtn = document.getElementById('cancel-btn');
+                const listingForm = document.getElementById('listing-form');
+                const imageUpload = document.getElementById('image-upload');
+                const fileInput = document.getElementById('file-input');
+                const previewContainer = document.getElementById('preview-container');
+                let uploadedFiles = []; // Массив для хранения File объектов
+
+                 // Показать форму добавления
+                if (addListingBtn) {
+                    addListingBtn.addEventListener('click', () => {
+                       userListingsDiv?.classList.add('hidden');
+                       addListingFormDiv?.classList.remove('hidden');
+                        addListingFormDiv?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        hapticFeedback('medium');
+                        tg.MainButton.setParams({
+                             text: 'ОПУБЛИКОВАТЬ',
+                             color: tg.themeParams.button_color || '#6366f1',
+                             text_color: tg.themeParams.button_text_color || '#ffffff',
+                             is_active: true,
+                             is_visible: true
+                        }).onClick(submitListingForm); // Назначаем обработчик на главную кнопку
+                    });
+                }
+
+                 // Отмена добавления/редактирования (по кнопке Отмена)
+                 if (cancelBtn) {
+                     cancelBtn.addEventListener('click', () => {
+                        addListingFormDiv?.classList.add('hidden');
+                        userListingsDiv?.classList.remove('hidden');
+                        listingForm?.reset();
+                        previewContainer.innerHTML = '';
+                        uploadedFiles = [];
+                        fileInput.value = ''; // Важно для повторного выбора тех же файлов
+                        hapticFeedback('light');
+                         tg.MainButton.hide(); // Скрываем главную кнопку при отмене
+                     });
+                 }
+
+                // Клик по области загрузки фото
+                if (imageUpload) {
+                    imageUpload.addEventListener('click', () => fileInput?.click());
+                }
+
+                 // Обработка выбора файлов
+                if (fileInput) {
+                    fileInput.addEventListener('change', (event) => {
+                        const files = event.target.files;
+                        let currentFileCount = uploadedFiles.length;
+
+                        if (files) {
+                             const filesToAdd = Array.from(files).slice(0, MAX_UPLOAD_FILES - currentFileCount);
+
+                             if (filesToAdd.length === 0 && files.length > 0) {
+                                 tg.showPopup({ message: `Достигнут лимит в ${MAX_UPLOAD_FILES} фото.` });
+                                 hapticFeedback('warning');
+                                 return; // Выходим, если лимит уже достигнут
+                             }
+
+                             filesToAdd.forEach(file => {
+                                 if (!file.type.startsWith('image/')) return; // Пропускаем не-изображения
+
+                                 // Проверка размера файла (например, макс 5MB)
+                                 if (file.size > 5 * 1024 * 1024) {
+                                      tg.showPopup({ message: `Файл ${file.name} слишком большой (макс 5MB).`});
+                                      hapticFeedback('warning');
+                                      return;
+                                 }
+
+                                 uploadedFiles.push(file); // Добавляем файл в массив
+                                 const reader = new FileReader();
+                                 reader.onload = (e) => {
+                                     const previewDiv = document.createElement('div');
+                                     previewDiv.className = 'preview-image p-1'; // Добавим padding
+                                     previewDiv.innerHTML = `
+                                         <img src="${e.target.result}" alt="${file.name}" class="w-16 h-16 object-cover rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
+                                         <button type="button" class="remove-image" data-filename="${file.name}" title="Удалить">&times;</button>
+                                     `;
+                                     previewContainer.appendChild(previewDiv);
+
+                                     // Обработчик для кнопки удаления превью
+                                     previewDiv.querySelector('.remove-image').addEventListener('click', (removeEvent) => {
+                                         removeEvent.stopPropagation();
+                                         const filenameToRemove = removeEvent.target.getAttribute('data-filename');
+                                         uploadedFiles = uploadedFiles.filter(f => f.name !== filenameToRemove);
+                                         previewDiv.remove();
+                                         hapticFeedback('light');
+                                         console.log('Files after removal:', uploadedFiles.map(f=>f.name));
+                                         // Обновляем состояние главной кнопки, если нужно
+                                         updateMainButtonState();
+                                     });
+                                 }
+                                 reader.readAsDataURL(file);
+                             });
+
+                             fileInput.value = ''; // Сброс для повторного выбора
+                             console.log('Files after addition:', uploadedFiles.map(f=>f.name));
+                             hapticFeedback('soft');
+                             // Обновляем состояние главной кнопки
+                             updateMainButtonState();
+                         }
+                     });
+                }
+
+                // Функция для отправки формы (вызывается главной кнопкой Telegram)
+                const submitListingForm = async () => {
+                     if (!listingForm || !listingForm.checkValidity()) {
+                         // Если форма невалидна, подсвечиваем ошибки (стандартная валидация HTML5)
+                         listingForm?.reportValidity();
+                         hapticFeedback('error');
+                          tg.showAlert('Пожалуйста, заполните все обязательные поля (*).');
+                          tg.MainButton.hideProgress(); // Убираем индикатор загрузки, если был
+                         return;
+                     }
+
+                     hapticFeedback('heavy');
+                     tg.MainButton.showProgress(false); // Показать индикатор загрузки (неопределенный)
+                     tg.MainButton.disable(); // Деактивировать кнопку на время отправки
+
+                     const formData = new FormData(listingForm);
+                     uploadedFiles.forEach((file, index) => {
+                         formData.append(`photos[${index}]`, file, file.name); // Отправляем как массив photos[]
+                     });
+
+                     console.log('Submitting form data:');
+                     for (let [key, value] of formData.entries()) {
+                         console.log(`${key}: ${value instanceof File ? `File: ${value.name}, Size: ${value.size}` : value}`);
+                     }
+
+                     // --- Имитация отправки на сервер ---
+                     try {
+                         console.log('Simulating API call...');
+                         await new Promise(resolve => setTimeout(resolve, 2000)); // Пауза 2 сек
+                         // const response = await fetch('/api/your-endpoint', { method: 'POST', body: formData });
+                         // if (!response.ok) throw new Error('Server error simulation');
+                         // const result = await response.json(); // Если сервер отвечает JSON
+
+                         console.log('Simulated success!');
+                         tg.showPopup({ message: 'Объявление успешно опубликовано!'});
+                         hapticFeedback('success');
+                         cancelBtn.click(); // Имитируем нажатие "Отмена" для сброса формы и скрытия кнопки
+
+                         // TODO: Обновить список объявлений пользователя в userListingsDiv
+                         // Например, вызвать функцию loadUserListings();
+
+                     } catch (error) {
+                         console.error('Form submission error (simulated):', error);
+                         tg.showAlert(`Ошибка публикации: ${error.message || 'Попробуйте позже.'}`);
+                         hapticFeedback('error');
+                     } finally {
+                         tg.MainButton.hideProgress(); // Скрыть индикатор загрузки
+                         tg.MainButton.enable(); // Снова активировать кнопку (если не скрыли)
+                         // Не скрываем кнопку здесь, т.к. cancelBtn.click() ее скроет
+                     }
+                 };
+
+                // Отслеживание изменений в форме для активации/деактивации главной кнопки
+                 const updateMainButtonState = () => {
+                    // Проверяем валидность и, возможно, другие условия (например, наличие фото)
+                    const isValid = listingForm?.checkValidity() ?? false;
+                    // const hasPhotos = uploadedFiles.length > 0; // Пример доп. условия
+                    if (addListingFormDiv && !addListingFormDiv.classList.contains('hidden')) {
+                        if (isValid /*&& hasPhotos*/) {
+                           tg.MainButton.setParams({ is_active: true, text: 'ОПУБЛИКОВАТЬ' });
+                        } else {
+                           tg.MainButton.setParams({ is_active: false, text: 'ЗАПОЛНИТЕ ФОРМУ' });
+                        }
+                    }
+                 };
+
+                // Добавляем слушатели на поля формы для обновления кнопки
+                 if (listingForm) {
+                     listingForm.addEventListener('input', updateMainButtonState);
+                     // Также можно добавить на change для select
+                     listingForm.querySelectorAll('select').forEach(select => {
+                         select.addEventListener('change', updateMainButtonState);
+                     });
+                 }
+
+
+                 // --- Инициализация данных пользователя ---
+                 if (tg.initDataUnsafe?.user) {
+                     const user = tg.initDataUnsafe.user;
+                     const profileName = document.getElementById('profile-name');
+                     const profileUsername = document.getElementById('profile-username');
+                     const profilePhotoDiv = document.getElementById('profile-photo');
+
+                     if(profileName) profileName.textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Пользователь';
+                     if(profileUsername) profileUsername.textContent = user.username ? `@${user.username}` : `ID: ${user.id}`;
+
+                     // Загрузка фото профиля (если есть и доступно)
+                     if (user.photo_url && profilePhotoDiv) {
+                         profilePhotoDiv.innerHTML = `<img src="${user.photo_url}" alt="Фото профиля" class="w-full h-full object-cover rounded-full">`; // Добавил rounded-full
+                     } else if (profilePhotoDiv) {
+                         profilePhotoDiv.innerHTML = '<i class="fas fa-user text-white text-3xl"></i>';
+                     }
+                 } else {
+                      console.warn("Telegram user data not available (initDataUnsafe.user).");
+                 }
+
+                 // --- Инициализация: Показать первую вкладку ---
+                  const initialTab = 'home-tab';
+                  const initialTabButton = document.querySelector(`.tab-btn[data-tab="${initialTab}"]`);
+                  if (initialTabButton) {
+                      // Активируем нужную кнопку и контент
+                      tabButtons.forEach(btn => btn.classList.toggle('text-soft-primary', btn === initialTabButton));
+                      tabContents.forEach(content => content.classList.toggle('active', content.id === initialTab));
+                  } else {
+                       console.error("Initial tab button not found!");
+                  }
+
+                 // --- Кнопка Назад Telegram ---
+                 // tg.BackButton.show(); // Показать кнопку Назад
+                 // tg.onEvent('backButtonClicked', () => {
+                 //     console.log("Back button clicked");
+                 //     // Здесь логика: если открыта форма - закрыть ее, иначе - ???
+                 //     if (addListingFormDiv && !addListingFormDiv.classList.contains('hidden')) {
+                 //         cancelBtn.click(); // Закрыть форму добавления
+                 //         tg.BackButton.hide(); // Скрыть кнопку Назад
+                 //     } else {
+                 //         // Возможно, переход на предыдущую вкладку или закрытие WebApp
+                 //         // tg.close();
+                 //     }
+                 // });
+                 // Не показываем кнопку Назад по умолчанию
+
+                 // --- Инициализация завершена ---
+                 console.log("Application Ready.");
+
+            }); // Конец DOMContentLoaded
+        } // Конец проверки на Telegram
     </script>
 </body>
 </html>
