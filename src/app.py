@@ -19,6 +19,7 @@ import hypercorn.asyncio
 from hypercorn.config import Config
 import psycopg2
 from psycopg2.extras import DictCursor
+import threading
 
 # Настройки
 TELEGRAM_TOKEN = "7846698102:AAFR2bhmjAkPiV-PjtnFIu_oRnzxYPP1xVo"
@@ -206,11 +207,42 @@ class OnlinerParser:
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument(f"user-agent={USER_AGENT}")
-        chrome_options.binary_location = "/usr/bin/google-chrome"
+        chrome_options.binary_location = "/usr/local/bin/google-chrome"
 
         try:
-            # Use the system-installed chromedriver
-            service = Service("/usr/local/bin/chromedriver")  # Updated path
+            # Проверяем, существует ли Chromedriver
+            if not os.path.exists("/usr/local/bin/chromedriver"):
+                logger.error("Chromedriver не найден по пути /usr/local/bin/chromedriver")
+                return results
+
+            # Проверяем права на выполнение Chromedriver
+            if not os.access("/usr/local/bin/chromedriver", os.X_OK):
+                logger.error("Chromedriver не имеет прав на выполнение")
+                return results
+
+            # Проверяем версию Chromedriver
+            import subprocess
+            try:
+                chromedriver_version = subprocess.check_output(["/usr/local/bin/chromedriver", "--version"]).decode("utf-8")
+                logger.info(f"Chromedriver version: {chromedriver_version}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Не удалось проверить версию Chromedriver: {e}")
+                return results
+
+            # Проверяем, существует ли Chrome
+            if not os.path.exists("/usr/local/bin/google-chrome"):
+                logger.error("Chrome не найден по пути /usr/local/bin/google-chrome")
+                return results
+
+            # Проверяем версию Chrome W
+            try:
+                chrome_version = subprocess.check_output(["/usr/local/bin/google-chrome", "--version"]).decode("utf-8")
+                logger.info(f"Chrome version: {chrome_version}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Не удалось проверить версию Chrome: {e}")
+                return results
+
+            service = Service("/usr/local/bin/chromedriver")
             driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.get(url)
             time.sleep(5)
@@ -240,7 +272,7 @@ class OnlinerParser:
                     logger.error(f"Ошибка парсинга объявления Onliner: {e}")
             logger.info(f"Parsed {len(results)} valid ads from Onliner")
         except Exception as e:
-            logger.error(f"Ошибка загрузки страницы Onliner: {e}")
+            logger.error(f"Ошибка загрузки страницы Onliner: {str(e)}")
             return results
         finally:
             try:
@@ -525,26 +557,19 @@ async def main():
     config.bind = ["0.0.0.0:" + os.environ.get("PORT", "5000")]
     config.debug = True
 
-    # Запускаем Flask и Telegram бот в одном цикле событий
-    loop = asyncio.get_event_loop()
-    
-    # Создаем задачи для Flask и Telegram бота
-    flask_task = loop.create_task(hypercorn.asyncio.serve(app, config))
-    bot_task = loop.create_task(application.run_polling(allowed_updates=Update.ALL_TYPES))
+    # Запускаем Telegram-бот в отдельном потоке
+    import threading
+    def run_bot():
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-    # Ждем завершения обеих задач
-    try:
-        await asyncio.gather(flask_task, bot_task)
-    except KeyboardInterrupt:
-        # При получении SIGINT (например, Ctrl+C) корректно завершаем задачи
-        flask_task.cancel()
-        bot_task.cancel()
-        await application.stop()
-        await application.shutdown()
-        scheduler.shutdown()
-        loop.stop()
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.start()
+
+    # Запускаем Flask (Hypercorn) в основном цикле событий
+    await hypercorn.asyncio.serve(app, config)
+
+    # Ожидаем завершения потока бота при завершении приложения
+    bot_thread.join()
 
 if __name__ == "__main__":
     # Запускаем основной цикл событий
