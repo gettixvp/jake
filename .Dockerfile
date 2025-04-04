@@ -4,7 +4,7 @@ FROM python:3.9-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies, including those required by Google Chrome
 RUN apt-get update && apt-get install -y \
     wget \
     unzip \
@@ -20,11 +20,13 @@ RUN apt-get update && apt-get install -y \
     fonts-liberation \
     libappindicator3-1 \
     xdg-utils \
+    libasound2 \
+    libvulkan1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Google Chrome
 RUN wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && dpkg -i /tmp/google-chrome.deb || apt-get install -f -y \
+    && dpkg -i /tmp/google-chrome.deb \
     && rm /tmp/google-chrome.deb
 
 # Install Chromedriver
@@ -38,8 +40,8 @@ RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+') \
 # Copy project files
 COPY requirements.txt .
 COPY src/ .
-COPY src/mini_app.html .
-COPY src/favicon.ico .
+COPY mini_app.html .
+COPY favicon.ico .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
