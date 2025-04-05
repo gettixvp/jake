@@ -106,7 +106,6 @@ def init_db():
                         city TEXT,
                         price INTEGER CHECK (price >= 0),
                         rooms TEXT,
-                        area REAL CHECK (area > 0),
                         address TEXT,
                         image TEXT,
                         description TEXT,
@@ -130,7 +129,7 @@ def init_db():
                         description TEXT,
                         price INTEGER NOT NULL CHECK (price >= 0),
                         rooms TEXT NOT NULL,
-                        area REAL CHECK (area > 0),
+                        area INTEGER CHECK (area > 0),
                         city TEXT NOT NULL,
                         address TEXT,
                         image_filenames TEXT,
@@ -152,7 +151,7 @@ def init_db():
         finally:
             if conn: conn.close()
     else:
-        logger.critical("Failed to initialize database after multiple retries.")
+        logger.critical("Failed to initialize database after multiple retries. Check connection string and DB status.")
         raise ConnectionError("Could not initialize the database.")
 
 # --- Flask Application Setup ---
@@ -167,9 +166,12 @@ class ApartmentParser:
             "User-Agent": user_agent,
             "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
         }
         results = []
         base_url = f"https://re.kufar.by/l/{city}/snyat/kvartiru-dolgosrochno"
+
         url_parts = [base_url]
         if rooms_filter and rooms_filter.isdigit():
             url_parts.append(f"/{rooms_filter}k")
@@ -192,10 +194,14 @@ class ApartmentParser:
                     response.raise_for_status()
                     html = await response.text()
                     soup = BeautifulSoup(html, "html.parser")
-                    ad_elements = soup.select("section a[data-testid^='listing-item-']")
+                    ad_elements = soup.select("section a[data-testid^='listing-ad-']")
 
                     if not ad_elements:
-                        logger.warning(f"No ads found on Kufar for {city}.")
+                        logger.warning(f"No ads found with selector 'section a[data-testid^=listing-ad-]' on Kufar for {city}.")
+                        if "captcha" in html.lower():
+                            logger.error("Kufar CAPTCHA detected.")
+                            with open(f"kufar_captcha_{city}.html", "w", encoding="utf-8") as f:
+                                f.write(html)
                         return []
 
                     logger.info(f"Found {len(ad_elements)} potential ads on Kufar for {city}.")
@@ -203,30 +209,12 @@ class ApartmentParser:
                         try:
                             link = ad_element.get("href")
                             if not link or not link.startswith('/l/'): continue
+
                             full_link = f"https://re.kufar.by{link}"
+                            price = ApartmentParser._parse_price(ad_element)
+                            rooms_str, area = ApartmentParser._parse_rooms_area(ad_element)
 
-                            image = ad_element.select_one(".styles_image__7aRPM img")
-                            image_url = image["src"] if image else None
-
-                            price_elem = ad_element.select_one(".styles_price__usd__HpXMa")
-                            price = int(re.sub(r"[^\d]", "", price_elem.text)) if price_elem else None
-
-                            desc_elem = ad_element.select_one(".styles_body__5BrnC.styles_body__r33c8")
-                            description = desc_elem.text.strip() if desc_elem else "Описание не указано"
-
-                            address_elem = ad_element.select_one(".styles_address__l6Qe_")
-                            address = address_elem.text.strip() if address_elem else "Адрес не указан"
-
-                            params_elem = ad_element.select_one(".styles_parameters__7zKlL")
-                            params = params_elem.text.strip() if params_elem else ""
-                            rooms, area = None, None
-                            if params:
-                                rooms_match = re.search(r"(\d+)\s*комн\.?", params)
-                                area_match = re.search(r"(\d+(?:[.,]\d+)?)\s*м", params)
-                                rooms = rooms_match.group(1) if rooms_match else "studio" if "студия" in params.lower() else None
-                                area = float(area_match.group(1).replace(',', '.')) if area_match else None
-
-                            if not ApartmentParser._check_room_filter(rooms, rooms_filter):
+                            if not ApartmentParser._check_room_filter(rooms_str, rooms_filter):
                                 continue
 
                             results.append({
@@ -234,20 +222,95 @@ class ApartmentParser:
                                 "source": "Kufar",
                                 "city": city,
                                 "price": price,
-                                "rooms": rooms,
-                                "area": area,
-                                "address": address,
-                                "image": image_url,
-                                "description": description,
-                                "user_id": None,
-                                "created_at": datetime.datetime.utcnow().isoformat(),
-                                "last_seen": datetime.datetime.utcnow().isoformat()
+                                "rooms": rooms_str,
+                                "address": ApartmentParser._parse_address(ad_element),
+                                "image": ApartmentParser._parse_image(ad_element),
+                                "description": ApartmentParser._parse_description(ad_element),
+                                "user_id": None
                             })
                         except Exception as parse_err:
                             logger.warning(f"Could not parse Kufar ad item ({link}): {parse_err}")
+        except aiohttp.ClientResponseError as e:
+            logger.error(f"HTTP error fetching Kufar for {city}: {e.status} {e.message}")
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout error fetching Kufar for {city}")
         except Exception as e:
-            logger.exception(f"Error fetching/parsing Kufar for {city}: {e}")
+            logger.exception(f"Unexpected error fetching/parsing Kufar for {city}: {e}")
+
+        logger.info(f"Parsed {len(results)} ads from Kufar for {city}.")
         return results
+
+    @staticmethod
+    def _parse_price(ad) -> Optional[int]:
+        try:
+            price_div = ad.find("div", string=re.compile(r'\$\s*per month'))
+            if price_div:
+                price_span = price_div.find("span")
+                if price_span:
+                    price_text = price_span.text.strip()
+                    return int(re.sub(r"[^\d]", "", price_text))
+            price_element = ad.select_one("span[class*='price']")
+            if price_element and '$' in price_element.text:
+                price_text = price_element.text.strip()
+                return int(re.sub(r"[^\d]", "", price_text))
+        except (AttributeError, ValueError, TypeError) as e:
+            logger.warning(f"Could not parse Kufar price: {e}")
+        return None
+
+    @staticmethod
+    def _parse_rooms_area(ad) -> tuple[Optional[str], Optional[float]]:
+        rooms_str = None
+        area = None
+        try:
+            params_div = ad.select_one("div[class*='parameters']")
+            if params_div:
+                text = params_div.text.strip().replace('\xa0', ' ')
+                rooms_match = re.search(r"(\d+)\s*(?:комнат|комн\.?)", text, re.IGNORECASE)
+                studio_match = re.search(r"Студия", text, re.IGNORECASE)
+                area_match = re.search(r"(\d+(?:[.,]\d+)?)\s*м²", text)
+
+                if studio_match: rooms_str = "studio"
+                elif rooms_match:
+                    num = int(rooms_match.group(1))
+                    rooms_str = "4+" if num >= 4 else str(num)
+
+                if area_match:
+                    area = float(area_match.group(1).replace(',', '.'))
+        except Exception as e:
+            logger.warning(f"Could not parse Kufar rooms/area: {e}")
+        return rooms_str, area
+
+    @staticmethod
+    def _parse_address(ad) -> str:
+        try:
+            address_div = ad.select_one("div[class*='address']")
+            if address_div:
+                return address_div.text.strip()
+        except AttributeError:
+            pass
+        return "Адрес не указан"
+
+    @staticmethod
+    def _parse_image(ad) -> Optional[str]:
+        try:
+            img = ad.select_one("img[data-testid='image']")
+            if img:
+                src = img.get('data-src') or img.get('src')
+                if src and src.startswith('//'): return f"https:{src}"
+                return src
+        except AttributeError:
+            pass
+        return None
+
+    @staticmethod
+    def _parse_description(ad) -> str:
+        try:
+            title_h3 = ad.select_one("h3[class*='title']")
+            if title_h3:
+                return title_h3.text.strip()
+        except AttributeError:
+            pass
+        return "Описание не указано"
 
     @staticmethod
     def _check_room_filter(rooms_str: Optional[str], target_rooms: Optional[str]) -> bool:
@@ -266,16 +329,21 @@ class OnlinerParser:
             "User-Agent": user_agent,
             "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
         }
         results = []
         base_url = "https://r.onliner.by/ak/"
         fragment = ONLINER_CITY_URLS.get(city)
-        if not fragment: return []
+        if not fragment or '#' not in fragment:
+            logger.error(f"Invalid Onliner URL fragment for city: {city}")
+            return []
 
         query_params = {}
         if rooms_filter:
             if rooms_filter.isdigit(): query_params["rent_type[]"] = f"{rooms_filter}_room"
             elif rooms_filter == 'studio': query_params["rent_type[]"] = "studio"
+
         if min_price is not None: query_params["price[min]"] = min_price
         if max_price is not None: query_params["price[max]"] = max_price
         if min_price is not None or max_price is not None: query_params["currency"] = "usd"
@@ -293,56 +361,116 @@ class OnlinerParser:
                     response.raise_for_status()
                     html = await response.text()
                     soup = BeautifulSoup(html, "html.parser")
-                    ad_elements = soup.select(".classified")
+                    ad_elements = soup.select("div[class*='classified ']")
 
                     if not ad_elements:
-                        logger.warning(f"No ads found on Onliner for {city}.")
+                        logger.warning(f"No ads found with selector 'div[class*=classified ]' on Onliner for {city}.")
+                        if "Произошла ошибка" in html:
+                            logger.error("Onliner page indicates an error occurred.")
                         return []
 
                     logger.info(f"Found {len(ad_elements)} potential ads on Onliner for {city}.")
                     for ad_element in ad_elements[:ONLINER_LIMIT]:
                         try:
-                            link_elem = ad_element.select_one("a")
-                            link = link_elem["href"] if link_elem else None
+                            link_tag = ad_element.select_one("a[class*='classified__link']")
+                            link = link_tag['href'] if link_tag else None
                             if not link or not link.startswith('https://r.onliner.by/ak/apartments/'): continue
 
-                            image_elem = ad_element.select_one("img[data-bind='attr: {src: apartment.photo}']")
-                            image = image_elem["src"] if image_elem else None
+                            price = OnlinerParser._parse_price(ad_element)
+                            rooms_str, area = OnlinerParser._parse_rooms_area(ad_element)
 
-                            price_elem = ad_element.select_one(".classified__price.classified__price_secondary")
-                            price = int(re.sub(r"[^\d]", "", price_elem.text.split("$")[0])) if price_elem and "$" in price_elem.text else None
-
-                            address_elem = ad_element.select_one(".classified__caption-item.classified__caption-item_adress")
-                            address = address_elem.text.strip() if address_elem else "Адрес не указан"
-
-                            rooms_elem = ad_element.select_one(".classified__caption-item.classified__caption-item_type")
-                            rooms = None
-                            if rooms_elem:
-                                text = rooms_elem.text.strip()
-                                if "Студия" in text: rooms = "studio"
-                                else: rooms = re.search(r"(\d+)к", text).group(1) if re.search(r"(\d+)к", text) else None
-
-                            if not OnlinerParser._check_room_filter(rooms, rooms_filter): continue
+                            if not OnlinerParser._check_room_filter(rooms_str, rooms_filter): continue
 
                             results.append({
                                 "link": link,
                                 "source": "Onliner",
                                 "city": city,
                                 "price": price,
-                                "rooms": rooms,
-                                "area": None,  # Onliner не предоставляет площадь в текущих селекторах
-                                "address": address,
-                                "image": image,
-                                "description": address,
-                                "user_id": None,
-                                "created_at": datetime.datetime.utcnow().isoformat(),
-                                "last_seen": datetime.datetime.utcnow().isoformat()
+                                "rooms": rooms_str,
+                                "address": OnlinerParser._parse_address(ad_element),
+                                "image": OnlinerParser._parse_image(ad_element),
+                                "description": OnlinerParser._parse_description(ad_element, rooms_str, area),
+                                "user_id": None
                             })
                         except Exception as parse_err:
                             logger.warning(f"Could not parse Onliner ad item ({link}): {parse_err}")
+        except aiohttp.ClientResponseError as e:
+            logger.error(f"HTTP error fetching Onliner for {city}: {e.status} {e.message}")
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout error fetching Onliner for {city}")
         except Exception as e:
-            logger.exception(f"Error fetching/parsing Onliner for {city}: {e}")
+            logger.exception(f"Unexpected error fetching/parsing Onliner for {city}: {e}")
+
+        logger.info(f"Parsed {len(results)} ads from Onliner for {city}.")
         return results
+
+    @staticmethod
+    def _parse_price(ad) -> Optional[int]:
+        try:
+            price_span = ad.select_one("span[data-bind*='price.usd']")
+            if price_span:
+                price_text = price_span.text.strip()
+                return int(re.sub(r"[^\d]", "", price_text))
+        except (AttributeError, ValueError, TypeError) as e:
+            logger.warning(f"Could not parse Onliner price: {e}")
+        return None
+
+    @staticmethod
+    def _parse_rooms_area(ad) -> tuple[Optional[str], Optional[float]]:
+        rooms_str, area = None, None
+        try:
+            type_element = ad.select_one("div[class*='classified__information']")
+            if type_element:
+                text = type_element.text.strip()
+                rooms_match = re.search(r"(\d+)-комн", text)
+                studio_match = re.search(r"Студия", text, re.IGNORECASE)
+                area_match = re.search(r"(\d+(?:[.,]\d+)?)\s*м²", text)
+
+                if studio_match: rooms_str = "studio"
+                elif rooms_match:
+                    num = int(rooms_match.group(1))
+                    rooms_str = "4+" if num >= 4 else str(num)
+
+                if area_match:
+                    area = float(area_match.group(1).replace(',', '.'))
+        except Exception as e:
+            logger.warning(f"Could not parse Onliner rooms/area: {e}")
+        return rooms_str, area
+
+    @staticmethod
+    def _parse_address(ad) -> str:
+        try:
+            addr_el = ad.select_one("div[class*='classified__information-address']")
+            if addr_el: return addr_el.text.strip()
+        except AttributeError: pass
+        return "Адрес не указан"
+
+    @staticmethod
+    def _parse_image(ad) -> Optional[str]:
+        try:
+            img = ad.select_one("img[class*='classified__image']")
+            if img:
+                src = img.get("data-src") or img.get("src")
+                if src and src.startswith('//'): return f"https:{src}"
+                return src
+        except AttributeError: pass
+        return None
+
+    @staticmethod
+    def _parse_description(ad, rooms_str: Optional[str], area: Optional[float]) -> str:
+        parts = []
+        if rooms_str:
+            if rooms_str == "studio": parts.append("Студия")
+            elif rooms_str == "4+": parts.append("4+ комн.")
+            else: parts.append(f"{rooms_str} комн.")
+        if area: parts.append(f"{area:.1f}".replace('.0','') + " м²")
+
+        try:
+            title = ad.select_one("a[class*='classified__link']")
+            if title and title.text.strip(): parts.append(title.text.strip())
+        except AttributeError: pass
+
+        return ", ".join(parts) if parts else "Описание не указано"
 
     @staticmethod
     def _check_room_filter(rooms_str: Optional[str], target_rooms: Optional[str]) -> bool:
@@ -363,37 +491,45 @@ def store_ads(ads: List[Dict]) -> int:
         conn.autocommit = False
         with conn.cursor() as cur:
             upsert_query = """
-                INSERT INTO ads (link, source, city, price, rooms, area, address, image, description, user_id, created_at, last_seen)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO ads (link, source, city, price, rooms, address, image, description, user_id, created_at, last_seen)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT (link) DO UPDATE SET
                     last_seen = CURRENT_TIMESTAMP,
                     price = EXCLUDED.price,
-                    area = EXCLUDED.area,
                     address = EXCLUDED.address,
                     image = EXCLUDED.image,
                     description = EXCLUDED.description
                 RETURNING xmax;
             """
             for ad in ads:
-                if not ad.get("link") or not ad.get("source"): continue
+                if not ad.get("link") or not ad.get("source"):
+                    logger.warning(f"Skipping ad due to missing link or source: {ad.get('link', 'N/A')}")
+                    continue
+
                 values = (
                     ad.get("link"), ad.get("source"), ad.get("city"), ad.get("price"),
-                    ad.get("rooms"), ad.get("area"), ad.get("address"), ad.get("image"),
+                    ad.get("rooms"), ad.get("address"), ad.get("image"),
                     ad.get("description"), ad.get("user_id")
                 )
                 try:
                     cur.execute(upsert_query, values)
                     result = cur.fetchone()
-                    if result and result[0] == 0: added_count += 1
-                except Exception as insert_err:
-                    logger.error(f"Error upserting ad {ad.get('link')}: {insert_err}")
+                    if result and result[0] == 0:
+                        added_count += 1
+                except (psycopg2.Error, TypeError, ValueError) as insert_err:
+                    logger.error(f"Error upserting ad {ad.get('link')}: {insert_err}. Values: {values}")
                     conn.rollback()
                 else:
                     conn.commit()
+
         logger.info(f"DB Store: Processed {len(ads)} ads. Added {added_count} new.")
         return added_count
+    except psycopg2.Error as e:
+        logger.error(f"Database connection/operation error during store_ads: {e}")
+        if conn: conn.rollback()
+        return 0
     except Exception as e:
-        logger.exception(f"Error in store_ads: {e}")
+        logger.exception(f"Unexpected error in store_ads: {e}")
         if conn: conn.rollback()
         return 0
     finally:
@@ -411,37 +547,50 @@ async def fetch_and_store_all_ads():
         tasks.append(OnlinerParser.fetch_ads(city))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
+
     all_fetched_ads = []
     for i, result in enumerate(results):
         source = "Kufar" if i % 2 == 0 else "Onliner"
-        city = list(CITIES.keys())[i // 2]
+        city_index = i // 2
+        city = list(CITIES.keys())[city_index]
+
         if isinstance(result, Exception):
             logger.error(f"Error fetching from {source} for {city}: {result}")
         elif isinstance(result, list):
+            logger.info(f"Fetched {len(result)} ads from {source} for {city}.")
             all_fetched_ads.extend(result)
+        else:
+            logger.warning(f"Unexpected result type from {source} for {city}: {type(result)}")
 
     if all_fetched_ads:
         total_new_ads = store_ads(all_fetched_ads)
+    else:
+        logger.info("No ads fetched from any source in this cycle.")
+
+    end_time = time.time()
+    logger.info(f"--- Finished Periodic Ad Fetching Task ---")
     logger.info(f"Total New Ads Found: {total_new_ads}")
-    logger.info(f"Duration: {time.time() - start_time:.2f} seconds")
+    logger.info(f"Duration: {end_time - start_time:.2f} seconds")
 
 # --- Flask API Endpoints ---
 @app.route('/api/ads', methods=['GET'])
 def get_ads_api():
     city = request.args.get('city')
-    min_price = request.args.get('min_price', type=int)
-    max_price = request.args.get('max_price', type=int)
+    min_price_str = request.args.get('min_price')
+    max_price_str = request.args.get('max_price')
     rooms = request.args.get('rooms')
-    kufar_offset = request.args.get('kufar_offset', default=0, type=int)
-    onliner_offset = request.args.get('onliner_offset', default=0, type=int)
-    user_offset = request.args.get('user_offset', default=0, type=int)
 
+    min_price = int(min_price_str) if min_price_str and min_price_str.isdigit() else None
+    max_price = int(max_price_str) if max_price_str and max_price_str.isdigit() else None
+
+    logger.info(f"API Request /api/ads: city={city}, min_p={min_price}, max_p={max_price}, rooms={rooms}")
     conn = None
     try:
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
             query = "SELECT * FROM ads WHERE 1=1"
             params = []
+
             if city:
                 query += " AND city = %s"
                 params.append(city)
@@ -460,97 +609,26 @@ def get_ads_api():
                     query += " AND rooms = %s"
                     params.append(rooms)
 
-            query += " ORDER BY created_at DESC"
+            query += " ORDER BY created_at DESC LIMIT 20"
+
             cur.execute(query, tuple(params))
-            all_ads_dicts = [dict(row) for row in cur.fetchall()]
-
-            kufar_ads = [ad for ad in all_ads_dicts if ad["source"] == "Kufar"]
-            onliner_ads = [ad for ad in all_ads_dicts if ad["source"] == "Onliner"]
-            user_ads = [ad for ad in all_ads_dicts if ad["source"] == "User"]
-
-            kufar_limit = KUFAR_LIMIT
-            onliner_limit = ONLINER_LIMIT
-            user_limit = 10
-
-            kufar_slice = kufar_ads[kufar_offset:kufar_offset + kufar_limit]
-            onliner_slice = onliner_ads[onliner_offset:onliner_offset + onliner_limit]
-            user_slice = user_ads[user_offset:user_offset + user_limit]
-
-            result_slice = user_slice + kufar_slice + onliner_slice
-
-            next_kufar_offset = kufar_offset + len(kufar_slice)
-            next_onliner_offset = onliner_offset + len(onliner_slice)
-            next_user_offset = user_offset + len(user_slice)
-
-            has_more = (len(kufar_ads) > next_kufar_offset or
-                       len(onliner_ads) > next_onliner_offset or
-                       len(user_ads) > next_user_offset)
+            ads = [dict(row) for row in cur.fetchall()]
+            logger.info(f"DB Query found {len(ads)} ads matching filters.")
 
             response_data = []
-            for ad in result_slice:
+            for ad in ads:
                 ad['created_at'] = ad['created_at'].isoformat() if ad.get('created_at') else None
                 ad['last_seen'] = ad['last_seen'].isoformat() if ad.get('last_seen') else None
                 response_data.append(ad)
 
-            return jsonify({
-                "ads": response_data,
-                "has_more": has_more,
-                "next_kufar_offset": next_kufar_offset,
-                "next_onliner_offset": next_onliner_offset,
-                "next_user_offset": next_user_offset
-            })
+            logger.info(f"API Response: Returning {len(response_data)} ads.")
+            return jsonify({"ads": response_data})
+
+    except psycopg2.Error as db_err:
+        logger.error(f"Database error in /api/ads: {db_err}")
+        return jsonify({"error": "Database Error", "details": str(db_err)}), 500
     except Exception as e:
-        logger.exception(f"Error in /api/ads: {e}")
-        return jsonify({"error": "Internal Server Error"}), 500
-    finally:
-        if conn: conn.close()
-
-@app.route('/api/new_listings', methods=['GET'])
-def get_new_listings_api():
-    user_id = request.args.get('user_id', type=int)
-    limit = request.args.get('limit', default=10, type=int)
-    offset = request.args.get('offset', default=0, type=int)
-
-    conn = None
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            query = """
-                SELECT * FROM ads 
-                WHERE created_at > (SELECT COALESCE(MAX(last_seen), '2000-01-01') FROM users WHERE id = %s)
-                ORDER BY created_at DESC
-                LIMIT %s OFFSET %s
-            """
-            cur.execute(query, (user_id, limit, offset))
-            new_ads = [dict(row) for row in cur.fetchall()]
-            for ad in new_ads:
-                ad['created_at'] = ad['created_at'].isoformat()
-                ad['last_seen'] = ad['last_seen'].isoformat()
-            return jsonify({"ads": new_ads, "has_more": len(new_ads) == limit})
-    except Exception as e:
-        logger.exception(f"Error in /api/new_listings: {e}")
-        return jsonify({"error": "Internal Server Error"}), 500
-    finally:
-        if conn: conn.close()
-
-@app.route('/api/user_listings', methods=['GET'])
-def get_user_listings_api():
-    user_id = request.args.get('user_id', type=int)
-    if not user_id:
-        return jsonify({"error": "Missing user_id"}), 400
-
-    conn = None
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("SELECT * FROM ads WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
-            user_ads = [dict(row) for row in cur.fetchall()]
-            for ad in user_ads:
-                ad['created_at'] = ad['created_at'].isoformat()
-                ad['last_seen'] = ad['last_seen'].isoformat()
-            return jsonify({"ads": user_ads})
-    except Exception as e:
-        logger.exception(f"Error in /api/user_listings: {e}")
+        logger.exception(f"Unexpected error in /api/ads: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
     finally:
         if conn: conn.close()
@@ -559,13 +637,15 @@ def get_user_listings_api():
 def register_user_api():
     data = request.json
     if not data or 'user_id' not in data:
+        logger.warning("Received /api/register_user request with missing user_id")
         return jsonify({"error": "Missing user_id"}), 400
 
     user_id = data['user_id']
     first_name = data.get('first_name')
     last_name = data.get('last_name')
     username = data.get('username')
-
+    logger.debug(f"Registering user: {user_id}, username: {username}")
+    
     conn = None
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -582,9 +662,15 @@ def register_user_api():
                 (user_id, first_name, last_name, username)
             )
             conn.commit()
+        logger.info(f"User registered/updated: {user_id} (username: {username})")
         return jsonify({"status": "success"})
+    except psycopg2.Error as db_err:
+        logger.error(f"DB error registering user {user_id}: {db_err}")
+        if conn: conn.rollback()
+        return jsonify({"error": "Database Error"}), 500
     except Exception as e:
-        logger.exception(f"Error registering user {user_id}: {e}")
+        logger.exception(f"Unexpected error registering user {user_id}: {e}")
+        if conn: conn.rollback()
         return jsonify({"error": "Internal Server Error"}), 500
     finally:
         if conn: conn.close()
@@ -595,32 +681,36 @@ async def add_listing_api():
     try:
         user_id = request.form.get('user_id', type=int)
         title = request.form.get('title')
-        price = request.form.get('price', type=int)
+        price_str = request.form.get('price')
         rooms = request.form.get('rooms')
         city = request.form.get('city')
 
-        if not all([user_id, title, price, rooms, city]):
-            missing = [k for k, v in {'user_id': user_id, 'title': title, 'price': price, 'rooms': rooms, 'city': city}.items() if v is None]
+        if not all([user_id, title, price_str, rooms, city]):
+            missing = [k for k, v in locals().items() if v is None and k in ['user_id', 'title', 'price_str', 'rooms', 'city']]
+            logger.warning(f"Missing required fields for add_listing: {missing}")
             return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
 
         description = request.form.get('description', '')
-        area = request.form.get('area', type=float)
+        area_str = request.form.get('area')
         address = request.form.get('address', '')
 
+        try:
+            price = int(price_str)
+            area = int(area_str) if area_str and area_str.isdigit() else None
+            if price < 0 or (area is not None and area <= 0): raise ValueError("Invalid number")
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid numeric value: price='{price_str}', area='{area_str}'")
+            return jsonify({"error": "Invalid price or area value"}), 400
+
         uploaded_files = request.files.getlist('photos[]')
-        image_filenames = ','.join([f.filename for f in uploaded_files if f and f.filename]) if uploaded_files else None
+        image_filenames = ','.join(
+            [f.filename for f in uploaded_files if f and f.filename]
+        ) if uploaded_files else None
+        logger.info(f"Received {len(uploaded_files)} file(s). Filenames: '{image_filenames}' for user {user_id}")
 
-        uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads')
-        os.makedirs(uploads_dir, exist_ok=True)
-        saved_images = []
-        for file in uploaded_files:
-            if file and file.filename:
-                filename = f"{user_id}_{int(time.time())}_{file.filename}"
-                file.save(os.path.join(uploads_dir, filename))
-                saved_images.append(filename)
-        image_filenames = ','.join(saved_images) if saved_images else None
-
+        listing_id = None
         conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = False
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -630,38 +720,138 @@ async def add_listing_api():
                 """,
                 (user_id, title, description, price, rooms, area, city, address, image_filenames)
             )
-            listing_id = cur.fetchone()[0]
+            result = cur.fetchone()
+            if result: listing_id = result[0]
+            else: raise Exception("Failed to retrieve listing ID.")
             conn.commit()
+        logger.info(f"Pending listing {listing_id} created for user {user_id}")
 
-        bot_instance = Application.builder().token(TELEGRAM_TOKEN).build().bot
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Approve", callback_data=f"approve_{listing_id}"),
-             InlineKeyboardButton("❌ Reject", callback_data=f"reject_{listing_id}")]
-        ])
-        message_text = (
-            f"🆕 Moderation Request (ID: {listing_id})\n"
-            f"👤 User: {user_id}\n"
-            f"🏠 Title: {title}\n💲 ${price} | {rooms}r | {area or '?'}m²\n"
-            f"📍 {city}, {address or 'N/A'}\n"
-            f"📝 {description or '-'}\n"
-            f"🖼️ Files: {image_filenames or 'None'}"
-        )
-        await bot_instance.send_message(chat_id=ADMIN_ID, text=message_text, reply_markup=keyboard)
+        if listing_id:
+            try:
+                bot_instance = Application.builder().token(TELEGRAM_TOKEN).build().bot
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ Approve", callback_data=f"approve_{listing_id}"),
+                     InlineKeyboardButton("❌ Reject", callback_data=f"reject_{listing_id}")]
+                ])
+                message_text = (
+                    f"🆕 Moderation Request (ID: {listing_id})\n"
+                    f"👤 User: {user_id}\n"
+                    f"🏠 Title: {title}\n💲 ${price} | {rooms}r | {area or '?'}m²\n"
+                    f"📍 {city}, {address or 'N/A'}\n"
+                    f"📝 {description or '-'}\n"
+                    f"🖼️ Files: {image_filenames or 'None'}"
+                )
+                await bot_instance.send_message(
+                    chat_id=ADMIN_ID, text=message_text, reply_markup=keyboard
+                )
+                logger.info(f"Admin notification sent for listing {listing_id}")
+            except Exception as bot_err:
+                logger.error(f"Failed to send admin notification for {listing_id}: {bot_err}")
 
         return jsonify({"status": "pending", "listing_id": listing_id})
+
+    except psycopg2.Error as db_err:
+        logger.error(f"DB error in add_listing: {db_err}")
+        if conn: conn.rollback()
+        return jsonify({"error": "Database Error"}), 500
     except Exception as e:
-        logger.exception(f"Error in /api/add_listing: {e}")
+        logger.exception(f"Unexpected error in /api/add_listing: {e}")
+        if conn: conn.rollback()
         return jsonify({"error": "Internal Server Error"}), 500
     finally:
         if conn: conn.close()
 
+@app.route('/api/new_listings', methods=['GET'])
+def get_new_listings_api():
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        logger.warning("Received /api/new_listings request with missing user_id")
+        return jsonify({"error": "Missing user_id"}), 400
+
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute("""
+                SELECT a.*
+                FROM ads a
+                LEFT JOIN users u ON u.id = %s
+                WHERE a.created_at > COALESCE(u.created_at, '1970-01-01')
+                AND (a.user_id IS NULL OR a.user_id != %s)
+                ORDER BY a.created_at DESC
+                LIMIT 20
+            """, (user_id, user_id))
+            ads = [dict(row) for row in cur.fetchall()]
+            logger.info(f"Found {len(ads)} new listings for user {user_id}")
+
+            response_data = []
+            for ad in ads:
+                ad['created_at'] = ad['created_at'].isoformat() if ad.get('created_at') else None
+                ad['last_seen'] = ad['last_seen'].isoformat() if ad.get('last_seen') else None
+                response_data.append(ad)
+
+            return jsonify({"ads": response_data})
+
+    except psycopg2.Error as db_err:
+        logger.error(f"Database error in /api/new_listings: {db_err}")
+        return jsonify({"error": "Database Error", "details": str(db_err)}), 500
+    except Exception as e:
+        logger.exception(f"Unexpected error in /api/new_listings: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/user_listings', methods=['GET'])
+def get_user_listings_api():
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        logger.warning("Received /api/user_listings request with missing user_id")
+        return jsonify({"error": "Missing user_id"}), 400
+
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute("SELECT * FROM ads WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
+            ads = [dict(row) for row in cur.fetchall()]
+            logger.info(f"Found {len(ads)} user listings for user {user_id}")
+
+            response_data = []
+            for ad in ads:
+                ad['created_at'] = ad['created_at'].isoformat() if ad.get('created_at') else None
+                ad['last_seen'] = ad['last_seen'].isoformat() if ad.get('last_seen') else None
+                response_data.append(ad)
+
+            return jsonify({"ads": response_data})
+
+    except psycopg2.Error as db_err:
+        logger.error(f"Database error in /api/user_listings: {db_err}")
+        return jsonify({"error": "Database Error", "details": str(db_err)}), 500
+    except Exception as e:
+        logger.exception(f"Unexpected error in /api/user_listings: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+    finally:
+        if conn: conn.close()
+
+# --- Flask Routes for Serving Files ---
 @app.route('/')
 def index():
-    return '<h1>Apartment Bot Backend</h1><p>Open the Mini App in Telegram.</p>'
+    logger.debug("Serving index page")
+    return ('<html><head><title>Apartment Bot</title></head>'
+            '<body><h1>Apartment Bot Backend</h1>'
+            '<p>Open the Mini App in Telegram via the bot.</p>'
+            '</body></html>')
 
 @app.route('/mini-app')
 def mini_app_route():
-    return send_from_directory(os.path.dirname(__file__), 'mini_app.html')
+    html_file = "mini_app.html"
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(root_dir, html_file)
+    if not os.path.exists(file_path):
+        logger.error(f"HTML file not found at expected path: {file_path}")
+        return "Error: Mini App interface file not found.", 404
+    logger.info(f"Serving {html_file} from {root_dir}")
+    return send_from_directory(root_dir, html_file)
 
 # --- Telegram Bot Class ---
 class ApartmentBot:
@@ -679,10 +869,17 @@ class ApartmentBot:
             BotCommand("start", "🚀 Запустить Поиск Квартир"),
             BotCommand("help", "ℹ️ Получить помощь")
         ]
-        await self.application.bot.set_my_commands(commands)
+        try:
+            await self.application.bot.set_my_commands(commands)
+            logger.info("Bot commands set.")
+        except Exception as e:
+            logger.error(f"Failed to set bot commands: {e}")
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
+        user_id, first_name, last_name, username = user.id, user.first_name, user.last_name, user.username
+        logger.info(f"/start from user {user_id} ({username or 'no_username'})")
+
         conn = None
         try:
             conn = psycopg2.connect(DATABASE_URL)
@@ -690,102 +887,153 @@ class ApartmentBot:
                 cur.execute(
                     """INSERT INTO users (id, first_name, last_name, username) VALUES (%s, %s, %s, %s)
                        ON CONFLICT (id) DO UPDATE SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, username = EXCLUDED.username;""",
-                    (user.id, user.first_name, user.last_name, user.username)
+                    (user_id, first_name, last_name, username)
                 )
                 conn.commit()
         except Exception as e:
-            logger.exception(f"DB error saving user {user.id}: {e}")
+            logger.error(f"DB error saving user {user_id}: {e}")
+            if conn: conn.rollback()
         finally:
             if conn: conn.close()
 
-        host = os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'YOUR_APP_NAME.onrender.com')
+        host = os.environ.get('RENDER_EXTERNAL_HOSTNAME', "apartment-bot.onrender.com")
         web_app_url = f"https://{host}/mini-app"
+        logger.info(f"Web App URL for user {user_id}: {web_app_url}")
+
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Открыть Поиск Квартир 🏠", web_app={"url": web_app_url})]])
         await update.message.reply_text("👋 Нажмите кнопку ниже, чтобы найти квартиру:", reply_markup=keyboard)
 
     async def help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text(
+        user = update.effective_user
+        user_id, username = user.id, user.username
+        logger.info(f"/help from user {user_id} ({username or 'no_username'})")
+        help_text = (
             "ℹ️ **Помощь по боту**\n\n"
             "Я помогу вам найти квартиру для долгосрочной аренды в Беларуси.\n"
-            "Используйте /start, чтобы открыть интерфейс поиска.\n"
-            "Вы можете фильтровать объявления и добавлять свои."
+            "Используйте команду /start, чтобы открыть интерфейс поиска.\n"
+            "Вы можете фильтровать объявления по городу, цене и количеству комнат.\n"
+            "Также вы можете добавить свое объявление через интерфейс.\n\n"
+            "Если у вас есть вопросы, свяжитесь с администратором."
         )
+        await update.message.reply_text(help_text)
 
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
-        if query.from_user.id != ADMIN_ID:
+        user = query.from_user
+        if user.id != ADMIN_ID:
             await query.answer("⛔ Access Denied", show_alert=True)
             return
 
         await query.answer()
-        action, listing_id = query.data.split("_", 1)
-        listing_id = int(listing_id)
+        data = query.data
+        action, listing_id_str = data.split("_", 1)
+        listing_id = int(listing_id_str)
+        logger.info(f"Admin action '{action}' for listing_id {listing_id}")
 
         conn = None
         try:
             conn = psycopg2.connect(DATABASE_URL)
+            conn.autocommit = False
             with conn.cursor(cursor_factory=DictCursor) as cur:
                 cur.execute("SELECT * FROM pending_listings WHERE id = %s", (listing_id,))
                 listing = cur.fetchone()
                 if not listing:
-                    await query.edit_message_text(f"⚠️ Listing {listing_id} not found.")
+                    await query.edit_message_text(f"⚠️ Listing {listing_id} not found or already processed.")
                     return
+
+                original_poster_id = listing['user_id']
+                listing_title_short = listing['title'][:50] + ('...' if len(listing['title']) > 50 else '')
 
                 if action == "approve":
                     cur.execute(
-                        """INSERT INTO ads (link, source, city, price, rooms, area, address, image, description, user_id, created_at, last_seen)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (link) DO NOTHING""",
+                        """INSERT INTO ads (link, source, city, price, rooms, address, image, description, user_id, created_at, last_seen)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (link) DO NOTHING""",
                         (f"user_listing_{listing_id}", "User", listing['city'], listing['price'], listing['rooms'],
-                         listing['area'], listing['address'], listing['image_filenames'], listing['description'],
-                         listing['user_id'], listing['submitted_at'], listing['submitted_at'])
+                         listing['address'], listing['image_filenames'], listing['description'], original_poster_id,
+                         listing['submitted_at'], listing['submitted_at'])
                     )
-                    cur.execute("DELETE FROM pending_listings WHERE id = %s", (listing_id,))
+                    cur.execute("UPDATE pending_listings SET status = 'approved' WHERE id = %s", (listing_id,))
                     conn.commit()
-                    await query.edit_message_text(f"✅ Approved: Listing {listing_id}")
-                    await context.bot.send_message(listing['user_id'], f"🎉 Ваше объявление '{listing['title']}' одобрено!")
+                    await query.edit_message_text(f"✅ Approved & Published: Listing {listing_id}")
+                    logger.info(f"Listing {listing_id} approved.")
+                    try:
+                        await context.bot.send_message(original_poster_id, f"🎉 Ваше объявление '{listing_title_short}' одобрено!")
+                    except Exception as notify_err:
+                        logger.warning(f"Failed to notify user {original_poster_id} of approval: {notify_err}")
+
                 elif action == "reject":
-                    cur.execute("DELETE FROM pending_listings WHERE id = %s", (listing_id,))
+                    cur.execute("UPDATE pending_listings SET status = 'rejected' WHERE id = %s", (listing_id,))
                     conn.commit()
                     await query.edit_message_text(f"❌ Rejected: Listing {listing_id}")
-                    await context.bot.send_message(listing['user_id'], f"😔 Ваше объявление '{listing['title']}' отклонено.")
+                    logger.info(f"Listing {listing_id} rejected.")
+                    try:
+                        await context.bot.send_message(original_poster_id, f"😔 Ваше объявление '{listing_title_short}' отклонено.")
+                    except Exception as notify_err:
+                        logger.warning(f"Failed to notify user {original_poster_id} of rejection: {notify_err}")
+
+        except psycopg2.Error as db_err:
+            logger.error(f"DB error handling callback for {listing_id}: {db_err}")
+            if conn: conn.rollback()
+            try: await query.edit_message_text("⚠️ Database error.")
+            except: pass
         except Exception as e:
-            logger.exception(f"Error handling callback {listing_id}: {e}")
-            await query.edit_message_text("⚠️ Internal error.")
+            logger.exception(f"Unexpected error handling callback {listing_id}: {e}")
+            if conn: conn.rollback()
+            try: await query.edit_message_text("⚠️ Internal error.")
+            except: pass
         finally:
             if conn: conn.close()
 
 # --- Main Application Logic ---
 async def shutdown_application(application: Application, scheduler: AsyncIOScheduler):
+    logger.info("Initiating shutdown...")
     if scheduler.running:
         scheduler.shutdown(wait=False)
+        logger.info("Scheduler stopped.")
     await application.stop()
+    logger.info("Application polling stopped.")
     await application.updater.shutdown()
+    logger.info("Updater shutdown complete.")
 
 async def main():
     logger.info("--- Application Starting ---")
+
     try:
         init_db()
     except ConnectionError:
+        logger.critical("Stopping application due to DB initialization failure.")
         return
 
+    # Initialize Telegram bot
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     bot_instance = ApartmentBot(application)
     await bot_instance.setup_commands()
 
+    # Setup scheduler
     scheduler = AsyncIOScheduler(timezone="Europe/Minsk")
+    initial_run_time = datetime.datetime.now() + datetime.timedelta(seconds=15)
     scheduler.add_job(
         fetch_and_store_all_ads,
-        trigger=IntervalTrigger(minutes=PARSE_INTERVAL, start_date=datetime.datetime.now() + datetime.timedelta(seconds=15)),
+        trigger=IntervalTrigger(minutes=PARSE_INTERVAL, start_date=initial_run_time),
         id='ad_parser_job',
+        name='Fetch and Store Ads',
         replace_existing=True
     )
     scheduler.start()
+    logger.info(f"Scheduler started. First run at ~{initial_run_time.strftime('%H:%M:%S')}, then every {PARSE_INTERVAL} min.")
 
+    # Configure Hypercorn
     config = Config()
     port = int(os.environ.get("PORT", "10000"))
     config.bind = [f"0.0.0.0:{port}"]
     config.use_reloader = bool(os.environ.get("DEBUG"))
+    config.accesslog = logger
+    config.errorlog = logger
+    logger.info(f"Hypercorn configured for 0.0.0.0:{port}")
 
+    logger.info("Starting Telegram bot polling and Hypercorn server...")
+
+    # Start polling and server as concurrent tasks
     async with application:
         await application.initialize()
         await application.start()
@@ -798,16 +1046,24 @@ async def main():
                 return_when=asyncio.FIRST_EXCEPTION
             )
             for task in done:
-                if task.exception(): raise task.exception()
+                if task.exception() is not None:
+                    logger.error(f"Task {task} failed with exception: {task.exception()}")
+                    raise task.exception()
         except Exception as e:
-            logger.error(f"Main loop error: {e}")
+            logger.error(f"Main loop encountered an error: {e}")
             for task in [polling_task, hypercorn_task]:
                 task.cancel()
             await shutdown_application(application, scheduler)
             raise
         finally:
+            if not polling_task.done():
+                polling_task.cancel()
+            if not hypercorn_task.done():
+                hypercorn_task.cancel()
             await asyncio.gather(polling_task, hypercorn_task, return_exceptions=True)
             await shutdown_application(application, scheduler)
+
+    logger.info("--- Application Shutdown Complete ---")
 
 if __name__ == "__main__":
     loop = asyncio.new_event_loop()
@@ -815,10 +1071,12 @@ if __name__ == "__main__":
     try:
         loop.run_until_complete(main())
     except KeyboardInterrupt:
-        logger.info("Application stopped manually.")
+        logger.info("Application stopped manually (KeyboardInterrupt).")
         for task in asyncio.all_tasks(loop):
             task.cancel()
         loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True))
+    except Exception as e:
+        logger.critical(f"Application crashed: {e}", exc_info=True)
     finally:
         if not loop.is_closed():
             loop.close()
