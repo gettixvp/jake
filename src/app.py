@@ -157,6 +157,9 @@ def init_db():
 # --- Flask Application Setup ---
 app = Flask(__name__)
 
+# --- Глобальная переменная для приложения Telegram ---
+bot_application = None
+
 # --- Parsers ---
 class ApartmentParser:
     @staticmethod
@@ -185,7 +188,7 @@ class ApartmentParser:
         full_url = f"{'/'.join(url_parts)}?{urllib.parse.urlencode(query_params, safe=':,')}"
         logger.info(f"Kufar Request URL: {full_url}")
 
-        await asyncio.sleep(random.uniform(1, 3))
+        await asyncio.sleep(random.uniform(3, 5))  # Увеличенная задержка для обхода CAPTCHA
 
         try:
             async with aiohttp.ClientSession(headers=headers) as session:
@@ -194,13 +197,13 @@ class ApartmentParser:
                     response.raise_for_status()
                     html = await response.text()
                     soup = BeautifulSoup(html, "html.parser")
-                    ad_elements = soup.select("section a[data-testid^='listing-ad-']")
+                    ad_elements = soup.select("article a[href^='/l/']")  # Обновленный селектор
 
                     if not ad_elements:
-                        logger.warning(f"No ads found with selector 'section a[data-testid^=listing-ad-]' on Kufar for {city}.")
+                        logger.warning(f"No ads found with selector 'article a[href^='/l/']' on Kufar for {city}.")
                         if "captcha" in html.lower():
                             logger.error("Kufar CAPTCHA detected.")
-                            with open(f"kufar_captcha_{city}.html", "w", encoding="utf-8") as f:
+                            with open(f"kufar_debug_{city}.html", "w", encoding="utf-8") as f:
                                 f.write(html)
                         return []
 
@@ -352,7 +355,7 @@ class OnlinerParser:
         full_url = f"{base_url}?{query_string}{fragment}" if query_string else f"{base_url}{fragment}"
         logger.info(f"Onliner Request URL: {full_url}")
 
-        await asyncio.sleep(random.uniform(1, 3))
+        await asyncio.sleep(random.uniform(3, 5))  # Увеличенная задержка для обхода блокировки
 
         try:
             async with aiohttp.ClientSession(headers=headers) as session:
@@ -361,12 +364,12 @@ class OnlinerParser:
                     response.raise_for_status()
                     html = await response.text()
                     soup = BeautifulSoup(html, "html.parser")
-                    ad_elements = soup.select("div[class*='classified ']")
+                    ad_elements = soup.select("div[class*='classified__item']")  # Обновленный селектор
 
                     if not ad_elements:
-                        logger.warning(f"No ads found with selector 'div[class*=classified ]' on Onliner for {city}.")
-                        if "Произошла ошибка" in html:
-                            logger.error("Onliner page indicates an error occurred.")
+                        logger.warning(f"No ads found with selector 'div[class*=classified__item]' on Onliner for {city}.")
+                        with open(f"onliner_debug_{city}.html", "w", encoding="utf-8") as f:
+                            f.write(html)
                         return []
 
                     logger.info(f"Found {len(ad_elements)} potential ads on Onliner for {city}.")
@@ -677,6 +680,7 @@ def register_user_api():
 
 @app.route('/api/add_listing', methods=['POST'])
 async def add_listing_api():
+    global bot_application
     conn = None
     try:
         user_id = request.form.get('user_id', type=int)
@@ -726,9 +730,8 @@ async def add_listing_api():
             conn.commit()
         logger.info(f"Pending listing {listing_id} created for user {user_id}")
 
-        if listing_id:
+        if listing_id and bot_application:
             try:
-                bot_instance = Application.builder().token(TELEGRAM_TOKEN).build().bot
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton("✅ Approve", callback_data=f"approve_{listing_id}"),
                      InlineKeyboardButton("❌ Reject", callback_data=f"reject_{listing_id}")]
@@ -741,7 +744,7 @@ async def add_listing_api():
                     f"📝 {description or '-'}\n"
                     f"🖼️ Files: {image_filenames or 'None'}"
                 )
-                await bot_instance.send_message(
+                await bot_application.bot.send_message(
                     chat_id=ADMIN_ID, text=message_text, reply_markup=keyboard
                 )
                 logger.info(f"Admin notification sent for listing {listing_id}")
@@ -996,6 +999,7 @@ async def shutdown_application(application: Application, scheduler: AsyncIOSched
     logger.info("Updater shutdown complete.")
 
 async def main():
+    global bot_application
     logger.info("--- Application Starting ---")
 
     try:
@@ -1007,6 +1011,7 @@ async def main():
     # Initialize Telegram bot
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     bot_instance = ApartmentBot(application)
+    bot_application = application  # Сохраняем глобально
     await bot_instance.setup_commands()
 
     # Setup scheduler
