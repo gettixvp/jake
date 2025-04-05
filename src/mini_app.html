@@ -462,6 +462,14 @@
                             <input type="checkbox" id="notifications-toggle" class="toggle-checkbox sr-only" checked>
                             <label for="notifications-toggle" class="toggle-label"></label>
                         </div>
+                        <div class="p-4 flex items-center justify-between">
+                            <div>
+                                <div class="text-sm font-medium text-soft-dark">Полноэкранный режим</div>
+                                <div class="text-xs text-soft-gray">Развернуть приложение</div>
+                            </div>
+                            <input type="checkbox" id="fullscreen-toggle" class="toggle-checkbox sr-only">
+                            <label for="fullscreen-toggle" class="toggle-label"></label>
+                        </div>
                         <div class="p-4 flex items-center justify-between opacity-60">
                             <div>
                                 <div class="text-sm font-medium text-soft-dark">Темный режим</div>
@@ -555,6 +563,37 @@
                 }
                 setViewportHeight();
                 tg.onEvent('viewportChanged', setViewportHeight);
+
+                function updateSafeArea() {
+                    const safeArea = document.querySelector('.safe-area');
+                    safeArea.style.paddingTop = `var(--tg-safe-area-inset-top, ${tg.safeAreaInset?.top || 0}px)`;
+                    safeArea.style.paddingLeft = `var(--tg-safe-area-inset-left, ${tg.safeAreaInset?.left || 0}px)`;
+                    safeArea.style.paddingRight = `var(--tg-safe-area-inset-right, ${tg.safeAreaInset?.right || 0}px)`;
+                    const bottomNav = document.querySelector('.bottom-nav');
+                    bottomNav.style.paddingBottom = `var(--tg-safe-area-inset-bottom, ${tg.safeAreaInset?.bottom || 0}px)`;
+                    bottomNav.style.height = `calc(60px + var(--tg-safe-area-inset-bottom, ${tg.safeAreaInset?.bottom || 0}px))`;
+                }
+                updateSafeArea();
+                tg.onEvent('safeAreaChanged', updateSafeArea);
+
+                const fullscreenToggle = document.getElementById('fullscreen-toggle');
+                fullscreenToggle.checked = tg.isFullscreen;
+                fullscreenToggle.addEventListener('change', () => {
+                    if (fullscreenToggle.checked) {
+                        tg.requestFullscreen();
+                    } else {
+                        tg.exitFullscreen();
+                    }
+                });
+
+                tg.onEvent('fullscreenChanged', () => {
+                    fullscreenToggle.checked = tg.isFullscreen;
+                    updateSafeArea();
+                });
+                tg.onEvent('fullscreenFailed', () => {
+                    fullscreenToggle.checked = false;
+                    tg.showAlert('Не удалось включить полноэкранный режим.');
+                });
 
                 function hapticFeedback(style = 'light') {
                     if (tg.HapticFeedback) {
@@ -786,7 +825,6 @@
                         if (data.error) throw new Error(data.error);
 
                         document.getElementById('profile-ad-count').textContent = data.ads.length;
-                        // Избранное и сообщения пока статичны (можно добавить API позже)
                         document.getElementById('profile-fav-count').textContent = '0';
                         document.getElementById('profile-msg-count').textContent = '0';
                     } catch (error) {
