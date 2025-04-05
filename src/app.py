@@ -258,7 +258,7 @@ class ApartmentParser:
         return None
 
     @staticmethod
-    def _parse_rooms_area(ad) -> (Optional[str], Optional[float]):
+    def _parse_rooms_area(ad) -> tuple[Optional[str], Optional[float]]:
         rooms_str = None
         area = None
         try:
@@ -416,7 +416,7 @@ class OnlinerParser:
         return None
 
     @staticmethod
-    def _parse_rooms_area(ad) -> (Optional[str], Optional[float]):
+    def _parse_rooms_area(ad) -> tuple[Optional[str], Optional[float]]:
         rooms_str, area = None, None
         try:
             type_element = ad.select_one(".classified__caption-item_type")
@@ -490,7 +490,7 @@ class OnlinerParser:
         else: return False
 
 # --- Database Operations ---
-def store_ads(ads: List[Dict]):
+def store_ads(ads: List[Dict]) -> int:
     if not ads: return 0
     added_count = 0
     conn = None
@@ -958,6 +958,16 @@ class ApartmentBot:
             if conn: conn.close()
 
 # --- Main Application Logic ---
+async def shutdown_application(application: Application, scheduler: AsyncIOScheduler):
+    logger.info("Initiating shutdown...")
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
+        logger.info("Scheduler stopped.")
+    await application.stop()
+    logger.info("Application polling stopped.")
+    await application.updater.shutdown()
+    logger.info("Updater shutdown complete.")
+
 async def main():
     logger.info("--- Application Starting ---")
 
@@ -967,10 +977,12 @@ async def main():
         logger.critical("Stopping application due to DB initialization failure.")
         return
 
+    # Initialize Telegram bot
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     bot_instance = ApartmentBot(application)
     await bot_instance.setup_commands()
 
+    # Setup scheduler
     scheduler = AsyncIOScheduler(timezone="Europe/Minsk")
     initial_run_time = datetime.datetime.now() + datetime.timedelta(seconds=15)
     scheduler.add_job(
@@ -983,8 +995,9 @@ async def main():
     scheduler.start()
     logger.info(f"Scheduler started. First run at ~{initial_run_time.strftime('%H:%M:%S')}, then every {PARSE_INTERVAL} min.")
 
+    # Configure Hypercorn
     config = Config()
-    port = os.environ.get("PORT", "10000")
+    port = int(os.environ.get("PORT", "10000"))  # Use Render's PORT or default to 10000
     config.bind = [f"0.0.0.0:{port}"]
     config.use_reloader = bool(os.environ.get("DEBUG"))
     config.accesslog = logger
@@ -993,29 +1006,43 @@ async def main():
 
     logger.info("Starting Telegram bot polling and Hypercorn server...")
 
-    # Создаем задачи для параллельного выполнения
-    polling_task = asyncio.create_task(application.run_polling(allowed_updates=Update.ALL_TYPES))
-    hypercorn_task = asyncio.create_task(hypercorn.asyncio.serve(app, config))
+    # Start polling and server as concurrent tasks
+    async with application:
+        await application.initialize()
+        await application.start()
+        polling_task = asyncio.create_task(application.updater.start_polling(allowed_updates=Update.ALL_TYPES))
+        hypercorn_task = asyncio.create_task(hypercorn.asyncio.serve(app, config))
 
-    # Ждем завершения задач или сигнала остановки
-    try:
-        await asyncio.wait([polling_task, hypercorn_task], return_when=asyncio.FIRST_EXCEPTION)
-    except asyncio.CancelledError:
-        logger.info("Received shutdown signal, stopping tasks...")
-        polling_task.cancel()
-        hypercorn_task.cancel()
-        await asyncio.gather(polling_task, hypercorn_task, return_exceptions=True)
+        try:
+            # Wait for either task to complete or raise an exception
+            done, pending = await asyncio.wait(
+                [polling_task, hypercorn_task],
+                return_when=asyncio.FIRST_EXCEPTION
+            )
+            for task in done:
+                if task.exception() is not None:
+                    logger.error(f"Task {task} failed with exception: {task.exception()}")
+                    raise task.exception()
+        except Exception as e:
+            logger.error(f"Main loop encountered an error: {e}")
+            for task in [polling_task, hypercorn_task]:
+                task.cancel()
+            await shutdown_application(application, scheduler)
+            raise
+        finally:
+            if not polling_task.done():
+                polling_task.cancel()
+            if not hypercorn_task.done():
+                hypercorn_task.cancel()
+            await asyncio.gather(polling_task, hypercorn_task, return_exceptions=True)
+            await shutdown_application(application, scheduler)
 
-    logger.info("Shutting down scheduler...")
-    if scheduler.running:
-        scheduler.shutdown(wait=False)
     logger.info("--- Application Shutdown Complete ---")
 
 if __name__ == "__main__":
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
-        # Создаем новый цикл событий
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         loop.run_until_complete(main())
     except KeyboardInterrupt:
         logger.info("Application stopped manually (KeyboardInterrupt).")
@@ -1023,7 +1050,7 @@ if __name__ == "__main__":
             task.cancel()
         loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True))
     except Exception as e:
-        logger.critical(f"Application exited with critical error: {e}", exc_info=True)
+        logger.critical(f"Application crashed: {e}", exc_info=True)
     finally:
         if not loop.is_closed():
             loop.close()
