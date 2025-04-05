@@ -38,7 +38,6 @@ USER_AGENTS = [
 REQUEST_TIMEOUT = 20
 PARSE_INTERVAL = 30
 KUFAR_LIMIT = 7
-ONLINER_LIMIT = 7
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -61,15 +60,6 @@ CITIES = {
     "gomel": "🌆 Гомель",
     "vitebsk": "🏙 Витебск",
     "mogilev": "🏞️ Могилев",
-}
-
-ONLINER_CITY_URLS = {
-    "minsk": "#bounds[lb][lat]=53.820922446131&bounds[lb][long]=27.344970703125&bounds[rt][lat]=53.97547425743&bounds[rt][long]=27.77961730957",
-    "brest": "#bounds[lb][lat]=51.941725203142&bounds[lb][long]=23.492889404297&bounds[rt][lat]=52.234528294214&bounds[rt][long]=23.927536010742",
-    "vitebsk": "#bounds[lb][lat]=55.085834940707&bounds[lb][long]=29.979629516602&bounds[rt][lat]=55.357648391381&bounds[rt][long]=30.414276123047",
-    "gomel": "#bounds[lb][lat]=52.302600726968&bounds[lb][long]=30.732192993164&bounds[rt][lat]=52.593037841157&bounds[rt][long]=31.166839599609",
-    "grodno": "#bounds[lb][lat]=53.538267122397&bounds[lb][long]=23.629531860352&bounds[rt][lat]=53.820517109806&bounds[rt][long]=24.064178466797",
-    "mogilev": "#bounds[lb][lat]=53.74261986683&bounds[lb][long]=30.132064819336&bounds[rt][lat]=54.023503252809&bounds[rt][long]=30.566711425781",
 }
 
 # --- Database Initialization ---
@@ -102,7 +92,7 @@ def init_db():
                 cur.execute("""
                     CREATE TABLE ads (
                         link TEXT PRIMARY KEY,
-                        source TEXT NOT NULL CHECK (source IN ('Kufar', 'Onliner', 'User')),
+                        source TEXT NOT NULL CHECK (source IN ('Kufar', 'User')),
                         city TEXT,
                         price INTEGER CHECK (price >= 0),
                         rooms TEXT,
@@ -173,7 +163,7 @@ class ApartmentParser:
             "Upgrade-Insecure-Requests": "1",
         }
         results = []
-        base_url = f"https://www.kufar.by/l/r~{city}/snyat/kvartiru-dolgosrochno"  # Обновленный URL
+        base_url = f"https://www.kufar.by/l/r~{city}/snyat/kvartiru-dolgosrochno"
 
         url_parts = [base_url]
         if rooms_filter and rooms_filter.isdigit():
@@ -188,7 +178,7 @@ class ApartmentParser:
         full_url = f"{'/'.join(url_parts)}?{urllib.parse.urlencode(query_params, safe=':,')}"
         logger.info(f"Kufar Request URL: {full_url}")
 
-        await asyncio.sleep(random.uniform(5, 10))  # Увеличенная задержка для обхода CAPTCHA
+        await asyncio.sleep(random.uniform(5, 10))
 
         try:
             async with aiohttp.ClientSession(headers=headers) as session:
@@ -197,10 +187,10 @@ class ApartmentParser:
                     response.raise_for_status()
                     html = await response.text()
                     soup = BeautifulSoup(html, "html.parser")
-                    ad_elements = soup.select("a[href*='/l/'].Listingsstyles__Link-sc-5a38e5c3-1")  # Обновленный селектор
+                    ad_elements = soup.select("article[class*='styles_wrapper__Q06m9']")
 
                     if not ad_elements:
-                        logger.warning(f"No ads found with selector 'a[href*='/l/'].Listingsstyles__Link-sc-5a38e5c3-1' on Kufar for {city}.")
+                        logger.warning(f"No ads found with selector 'article[class*='styles_wrapper__Q06m9']' on Kufar for {city}.")
                         if "captcha" in html.lower() or "Проверка безопасности" in html:
                             logger.error("Kufar CAPTCHA detected.")
                             with open(f"kufar_debug_{city}.html", "w", encoding="utf-8") as f:
@@ -210,28 +200,20 @@ class ApartmentParser:
                     logger.info(f"Found {len(ad_elements)} potential ads on Kufar for {city}.")
                     for ad_element in ad_elements[:KUFAR_LIMIT]:
                         try:
-                            link = ad_element.get("href")
+                            link_tag = ad_element.select_one("a[href*='/l/']")
+                            link = link_tag.get("href") if link_tag else None
                             if not link or not link.startswith('/l/'): continue
 
                             full_link = f"https://www.kufar.by{link}"
-                            parent = ad_element.find_parent("article")
-                            if not parent: continue
-
-                            price = ApartmentParser._parse_price(parent)
-                            rooms_str, area = ApartmentParser._parse_rooms_area(parent)
-
-                            if not ApartmentParser._check_room_filter(rooms_str, rooms_filter):
-                                continue
-
                             results.append({
                                 "link": full_link,
                                 "source": "Kufar",
                                 "city": city,
-                                "price": price,
-                                "rooms": rooms_str,
-                                "address": ApartmentParser._parse_address(parent),
-                                "image": ApartmentParser._parse_image(parent),
-                                "description": ApartmentParser._parse_description(parent),
+                                "price": ApartmentParser._parse_price(ad_element),
+                                "rooms": ApartmentParser._parse_rooms(ad_element),
+                                "address": ApartmentParser._parse_address(ad_element),
+                                "image": ApartmentParser._parse_image(ad_element),
+                                "description": ApartmentParser._parse_description(ad_element),
                                 "user_id": None
                             })
                         except Exception as parse_err:
@@ -249,7 +231,7 @@ class ApartmentParser:
     @staticmethod
     def _parse_price(ad) -> Optional[int]:
         try:
-            price_span = ad.select_one("span[class*='PriceLabel']")
+            price_span = ad.select_one("span[class*='styles_price__usd__HpXMa']")
             if price_span and '$' in price_span.text:
                 price_text = price_span.text.strip()
                 return int(re.sub(r"[^\d]", "", price_text))
@@ -258,32 +240,27 @@ class ApartmentParser:
         return None
 
     @staticmethod
-    def _parse_rooms_area(ad) -> tuple[Optional[str], Optional[float]]:
+    def _parse_rooms(ad) -> Optional[str]:
         rooms_str = None
-        area = None
         try:
-            params_div = ad.select_one("p[class*='Parameters']")
+            params_div = ad.select_one("p[class*='styles_parameters__7zKlL']")
             if params_div:
                 text = params_div.text.strip().replace('\xa0', ' ')
                 rooms_match = re.search(r"(\d+)\s*(?:комнат|комн\.?)", text, re.IGNORECASE)
                 studio_match = re.search(r"Студия", text, re.IGNORECASE)
-                area_match = re.search(r"(\d+(?:[.,]\d+)?)\s*м²", text)
 
                 if studio_match: rooms_str = "studio"
                 elif rooms_match:
                     num = int(rooms_match.group(1))
                     rooms_str = "4+" if num >= 4 else str(num)
-
-                if area_match:
-                    area = float(area_match.group(1).replace(',', '.'))
         except Exception as e:
-            logger.warning(f"Could not parse Kufar rooms/area: {e}")
-        return rooms_str, area
+            logger.warning(f"Could not parse Kufar rooms: {e}")
+        return rooms_str
 
     @staticmethod
     def _parse_address(ad) -> str:
         try:
-            address_div = ad.select_one("p[class*='Address']")
+            address_div = ad.select_one("p[class*='styles_address__l6Qe_']")
             if address_div:
                 return address_div.text.strip()
         except AttributeError:
@@ -293,7 +270,7 @@ class ApartmentParser:
     @staticmethod
     def _parse_image(ad) -> Optional[str]:
         try:
-            img = ad.select_one("img[class*='Image']")
+            img = ad.select_one("img[class*='styles_image__7aRPM']")
             if img:
                 src = img.get('data-src') or img.get('src')
                 if src and src.startswith('//'): return f"https:{src}"
@@ -305,181 +282,12 @@ class ApartmentParser:
     @staticmethod
     def _parse_description(ad) -> str:
         try:
-            title_span = ad.select_one("h3[class*='Title']")
-            if title_span:
-                return title_span.text.strip()
+            desc_span = ad.select_one("h3[class*='styles_body__5BrnC styles_body__r33c8']")
+            if desc_span:
+                return desc_span.text.strip()
         except AttributeError:
             pass
         return "Описание не указано"
-
-    @staticmethod
-    def _check_room_filter(rooms_str: Optional[str], target_rooms: Optional[str]) -> bool:
-        if target_rooms is None: return True
-        if rooms_str is None: return False
-        if target_rooms == 'studio': return rooms_str == 'studio'
-        elif target_rooms == '4+': return rooms_str == '4+' or (rooms_str.isdigit() and int(rooms_str) >= 4)
-        elif target_rooms.isdigit(): return rooms_str == target_rooms
-        else: return False
-
-class OnlinerParser:
-    @staticmethod
-    async def fetch_ads(city: str, min_price: Optional[int] = None, max_price: Optional[int] = None, rooms_filter: Optional[str] = None) -> List[Dict]:
-        user_agent = random.choice(USER_AGENTS)
-        headers = {
-            "User-Agent": user_agent,
-            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-        }
-        results = []
-        base_url = "https://r.onliner.by/ak/apartments"
-        fragment = ONLINER_CITY_URLS.get(city)
-        if not fragment or '#' not in fragment:
-            logger.error(f"Invalid Onliner URL fragment for city: {city}")
-            return []
-
-        query_params = {"only_owner": "true"}  # Добавлено для обхода проблем с парсингом
-        if rooms_filter:
-            if rooms_filter.isdigit(): query_params["rent_type[]"] = f"{rooms_filter}_room"
-            elif rooms_filter == 'studio': query_params["rent_type[]"] = "studio"
-
-        if min_price is not None: query_params["price[min]"] = min_price
-        if max_price is not None: query_params["price[max]"] = max_price
-        if min_price is not None or max_price is not None: query_params["currency"] = "usd"
-
-        query_string = urllib.parse.urlencode(query_params, doseq=True)
-        full_url = f"{base_url}?{query_string}{fragment}" if query_string else f"{base_url}{fragment}"
-        logger.info(f"Onliner Request URL: {full_url}")
-
-        await asyncio.sleep(random.uniform(5, 10))  # Увеличенная задержка
-
-        try:
-            async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.get(full_url, timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)) as response:
-                    logger.info(f"Onliner response status: {response.status} for {city}")
-                    response.raise_for_status()
-                    html = await response.text()
-                    soup = BeautifulSoup(html, "html.parser")
-                    ad_elements = soup.select("div[class*='classified']:not([class*='classified-map'])")  # Обновленный селектор
-
-                    if not ad_elements:
-                        logger.warning(f"No ads found with selector 'div[class*='classified']:not([class*='classified-map'])' on Onliner for {city}.")
-                        with open(f"onliner_debug_{city}.html", "w", encoding="utf-8") as f:
-                            f.write(html)
-                        return []
-
-                    logger.info(f"Found {len(ad_elements)} potential ads on Onliner for {city}.")
-                    for ad_element in ad_elements[:ONLINER_LIMIT]:
-                        try:
-                            link_tag = ad_element.select_one("a[href*='/apartments/']")
-                            link = link_tag['href'] if link_tag else None
-                            if not link or not link.startswith('https://r.onliner.by/ak/apartments/'): continue
-
-                            price = OnlinerParser._parse_price(ad_element)
-                            rooms_str, area = OnlinerParser._parse_rooms_area(ad_element)
-
-                            if not OnlinerParser._check_room_filter(rooms_str, rooms_filter): continue
-
-                            results.append({
-                                "link": link,
-                                "source": "Onliner",
-                                "city": city,
-                                "price": price,
-                                "rooms": rooms_str,
-                                "address": OnlinerParser._parse_address(ad_element),
-                                "image": OnlinerParser._parse_image(ad_element),
-                                "description": OnlinerParser._parse_description(ad_element, rooms_str, area),
-                                "user_id": None
-                            })
-                        except Exception as parse_err:
-                            logger.warning(f"Could not parse Onliner ad item ({link}): {parse_err}")
-        except aiohttp.ClientResponseError as e:
-            logger.error(f"HTTP error fetching Onliner for {city}: {e.status} {e.message}")
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout error fetching Onliner for {city}")
-        except Exception as e:
-            logger.exception(f"Unexpected error fetching/parsing Onliner for {city}: {e}")
-
-        logger.info(f"Parsed {len(results)} ads from Onliner for {city}.")
-        return results
-
-    @staticmethod
-    def _parse_price(ad) -> Optional[int]:
-        try:
-            price_span = ad.select_one("span[data-bind*='price.usd']")
-            if price_span:
-                price_text = price_span.text.strip()
-                return int(re.sub(r"[^\d]", "", price_text))
-        except (AttributeError, ValueError, TypeError) as e:
-            logger.warning(f"Could not parse Onliner price: {e}")
-        return None
-
-    @staticmethod
-    def _parse_rooms_area(ad) -> tuple[Optional[str], Optional[float]]:
-        rooms_str, area = None, None
-        try:
-            type_element = ad.select_one("div[class*='classified__information']")
-            if type_element:
-                text = type_element.text.strip()
-                rooms_match = re.search(r"(\d+)-комн", text)
-                studio_match = re.search(r"Студия", text, re.IGNORECASE)
-                area_match = re.search(r"(\d+(?:[.,]\d+)?)\s*м²", text)
-
-                if studio_match: rooms_str = "studio"
-                elif rooms_match:
-                    num = int(rooms_match.group(1))
-                    rooms_str = "4+" if num >= 4 else str(num)
-
-                if area_match:
-                    area = float(area_match.group(1).replace(',', '.'))
-        except Exception as e:
-            logger.warning(f"Could not parse Onliner rooms/area: {e}")
-        return rooms_str, area
-
-    @staticmethod
-    def _parse_address(ad) -> str:
-        try:
-            addr_el = ad.select_one("div[class*='classified__information-address']")
-            if addr_el: return addr_el.text.strip()
-        except AttributeError: pass
-        return "Адрес не указан"
-
-    @staticmethod
-    def _parse_image(ad) -> Optional[str]:
-        try:
-            img = ad.select_one("img[class*='classified__image']")
-            if img:
-                src = img.get("data-src") or img.get("src")
-                if src and src.startswith('//'): return f"https:{src}"
-                return src
-        except AttributeError: pass
-        return None
-
-    @staticmethod
-    def _parse_description(ad, rooms_str: Optional[str], area: Optional[float]) -> str:
-        parts = []
-        if rooms_str:
-            if rooms_str == "studio": parts.append("Студия")
-            elif rooms_str == "4+": parts.append("4+ комн.")
-            else: parts.append(f"{rooms_str} комн.")
-        if area: parts.append(f"{area:.1f}".replace('.0','') + " м²")
-
-        try:
-            title = ad.select_one("a[href*='/apartments/']")
-            if title and title.text.strip(): parts.append(title.text.strip())
-        except AttributeError: pass
-
-        return ", ".join(parts) if parts else "Описание не указано"
-
-    @staticmethod
-    def _check_room_filter(rooms_str: Optional[str], target_rooms: Optional[str]) -> bool:
-        if target_rooms is None: return True
-        if rooms_str is None: return False
-        if target_rooms == 'studio': return rooms_str == 'studio'
-        elif target_rooms == '4+': return rooms_str == '4+' or (rooms_str.isdigit() and int(rooms_str) >= 4)
-        elif target_rooms.isdigit(): return rooms_str == target_rooms
-        else: return False
 
 # --- Database Operations ---
 def store_ads(ads: List[Dict]) -> int:
@@ -541,31 +349,24 @@ async def fetch_and_store_all_ads():
     start_time = time.time()
     total_new_ads = 0
 
-    tasks = []
-    for city in CITIES.keys():
-        tasks.append(ApartmentParser.fetch_ads(city))
-        tasks.append(OnlinerParser.fetch_ads(city))
-
+    tasks = [ApartmentParser.fetch_ads(city) for city in CITIES.keys()]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     all_fetched_ads = []
     for i, result in enumerate(results):
-        source = "Kufar" if i % 2 == 0 else "Onliner"
-        city_index = i // 2
-        city = list(CITIES.keys())[city_index]
-
+        city = list(CITIES.keys())[i]
         if isinstance(result, Exception):
-            logger.error(f"Error fetching from {source} for {city}: {result}")
+            logger.error(f"Error fetching from Kufar for {city}: {result}")
         elif isinstance(result, list):
-            logger.info(f"Fetched {len(result)} ads from {source} for {city}.")
+            logger.info(f"Fetched {len(result)} ads from Kufar for {city}.")
             all_fetched_ads.extend(result)
         else:
-            logger.warning(f"Unexpected result type from {source} for {city}: {type(result)}")
+            logger.warning(f"Unexpected result type from Kufar for {city}: {type(result)}")
 
     if all_fetched_ads:
         total_new_ads = store_ads(all_fetched_ads)
     else:
-        logger.info("No ads fetched from any source in this cycle.")
+        logger.info("No ads fetched from Kufar in this cycle.")
 
     end_time = time.time()
     logger.info(f"--- Finished Periodic Ad Fetching Task ---")
@@ -1005,13 +806,11 @@ async def main():
         logger.critical("Stopping application due to DB initialization failure.")
         return
 
-    # Initialize Telegram bot with a single instance
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     bot_instance = ApartmentBot(application)
-    bot_application = application  # Save globally to prevent multiple instances
+    bot_application = application
     await bot_instance.setup_commands()
 
-    # Setup scheduler
     scheduler = AsyncIOScheduler(timezone="Europe/Minsk")
     initial_run_time = datetime.datetime.now() + datetime.timedelta(seconds=15)
     scheduler.add_job(
@@ -1024,7 +823,6 @@ async def main():
     scheduler.start()
     logger.info(f"Scheduler started. First run at ~{initial_run_time.strftime('%H:%M:%S')}, then every {PARSE_INTERVAL} min.")
 
-    # Configure Hypercorn
     config = Config()
     port = int(os.environ.get("PORT", "10000"))
     config.bind = [f"0.0.0.0:{port}"]
@@ -1035,7 +833,6 @@ async def main():
 
     logger.info("Starting Telegram bot polling and Hypercorn server...")
 
-    # Start polling and server as concurrent tasks
     async with application:
         await application.initialize()
         await application.start()
@@ -1068,7 +865,6 @@ async def main():
     logger.info("--- Application Shutdown Complete ---")
 
 if __name__ == "__main__":
-    # Ensure only one instance runs by checking for existing process
     pid_file = "/tmp/apartment_bot.pid"
     if os.path.exists(pid_file):
         with open(pid_file, 'r') as f:
