@@ -35,6 +35,8 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36",
 ]
 
 # --- Logging Setup ---
@@ -158,9 +160,12 @@ class KufarParser:
         """Fetch ads from Kufar for a specific city"""
         headers = {
             "User-Agent": random.choice(USER_AGENTS),
-            "Accept-Language": "ru-RU,ru;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
             "Referer": "https://www.kufar.by/",
-            "DNT": "1"
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1"
         }
         
         base_url = f"https://www.kufar.by/l/r~{city}/snyat/kvartiru-dolgosrochno?cur=USD"
@@ -168,7 +173,7 @@ class KufarParser:
         
         try:
             async with aiohttp.ClientSession(headers=headers) as session:
-                await asyncio.sleep(random.uniform(5, 15))
+                await asyncio.sleep(random.uniform(15, 30))  # Увеличенная задержка
                 async with session.get(base_url, timeout=30) as response:
                     if response.status == 429:
                         logger.error(f"Rate limited for {city}, status: {response.status}")
@@ -176,7 +181,7 @@ class KufarParser:
                     
                     html = await response.text()
                     if "captcha" in html.lower():
-                        logger.error("Kufar CAPTCHA detected!")
+                        logger.error("Kufar CAPTCHA detected! Consider using proxies or CAPTCHA solving services.")
                         return []
                     
                     soup = BeautifulSoup(html, 'html.parser')
@@ -322,7 +327,7 @@ async def fetch_and_store_all_ads():
                 new_ads = store_ads(city_ads)
                 total_new_ads += new_ads
             
-            await asyncio.sleep(random.uniform(10, 20))
+            await asyncio.sleep(random.uniform(20, 40))  # Увеличенная задержка между городами
         except Exception as e:
             logger.error(f"Error processing city {city}: {e}")
             continue
@@ -506,17 +511,18 @@ async def add_listing_api():
                 logger.info(f"Admin notification sent for listing {listing_id}")
             except Exception as bot_err:
                 logger.error(f"Failed to send admin notification for {listing_id}: {bot_err}")
+                return jsonify({"error": "Failed to notify admin", "details": str(bot_err)}), 500
 
         return jsonify({"status": "pending", "listing_id": listing_id})
 
     except psycopg2.Error as db_err:
         logger.error(f"DB error in add_listing: {db_err}")
         if conn: conn.rollback()
-        return jsonify({"error": "Database Error"}), 500
+        return jsonify({"error": "Database Error", "details": str(db_err)}), 500
     except Exception as e:
         logger.exception(f"Unexpected error in /api/add_listing: {e}")
         if conn: conn.rollback()
-        return jsonify({"error": "Internal Server Error"}), 500
+        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
     finally:
         if conn: conn.close()
 
