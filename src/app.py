@@ -98,6 +98,7 @@ def init_db():
                         floor TEXT,
                         address TEXT,
                         image TEXT,
+                        title TEXT,
                         description TEXT,
                         user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -150,38 +151,11 @@ app = Flask(__name__)
 # --- Global variable for Telegram application ---
 bot_application = None
 
-# --- Improved Kufar Parser ---
+# --- Kufar Parser ---
 class KufarParser:
     @staticmethod
-    def parse_parameters(param_text: str) -> dict:
-        """Parse apartment parameters from text"""
-        params = {'rooms': None, 'area': None, 'floor': None}
-        text = param_text.lower()
-        
-        # Parse rooms
-        if 'студия' in text:
-            params['rooms'] = 'studio'
-        else:
-            rooms_match = re.search(r'(\d+)\s*комн', text)
-            if rooms_match:
-                rooms = int(rooms_match.group(1))
-                params['rooms'] = f"{rooms}" if rooms < 4 else "4+"
-        
-        # Parse area
-        area_match = re.search(r'(\d+)\s*м²?', text)
-        if area_match:
-            params['area'] = int(area_match.group(1))
-        
-        # Parse floor
-        floor_match = re.search(r'этаж\s*(\d+)\s*из\s*(\d+)', text)
-        if floor_match:
-            params['floor'] = f"{floor_match.group(1)}/{floor_match.group(2)}"
-        
-        return params
-
-    @staticmethod
     async def fetch_ads(city: str) -> List[Dict]:
-        """Fetch ads from Kufar for specific city"""
+        """Fetch ads from Kufar for a specific city"""
         headers = {
             "User-Agent": random.choice(USER_AGENTS),
             "Accept-Language": "ru-RU,ru;q=0.9",
@@ -189,20 +163,18 @@ class KufarParser:
             "DNT": "1"
         }
         
-        base_url = f"https://www.kufar.by/l/r~{city}/snyat/kvartiru-dolgosrochno"
+        base_url = f"https://www.kufar.by/l/r~{city}/snyat/kvartiru-dolgosrochno?cur=USD"
         logger.info(f"Kufar Request URL: {base_url}")
         
         try:
             async with aiohttp.ClientSession(headers=headers) as session:
                 await asyncio.sleep(random.uniform(5, 15))
-                
                 async with session.get(base_url, timeout=30) as response:
                     if response.status == 429:
                         logger.error(f"Rate limited for {city}, status: {response.status}")
                         return []
                     
                     html = await response.text()
-                    
                     if "captcha" in html.lower():
                         logger.error("Kufar CAPTCHA detected!")
                         return []
@@ -212,30 +184,23 @@ class KufarParser:
                     
                     for item in soup.select('article.styles_wrapper__Q06m9'):
                         try:
-                            # Parse link
                             link_tag = item.select_one('a[href^="/l/"]')
                             if not link_tag:
                                 continue
-                                
                             full_link = f"https://www.kufar.by{link_tag['href']}"
                             
-                            # Parse price
                             price_tag = item.select_one('span.styles_price__usd__HpXMa')
                             price = int(re.sub(r'\D', '', price_tag.text)) if price_tag else None
                             
-                            # Parse description
                             desc_tag = item.select_one('h3.styles_body__5BrnC.styles_body__r33c8')
                             description = desc_tag.text.strip() if desc_tag else "Нет описания"
                             
-                            # Parse address
                             address_tag = item.select_one('p.styles_address__l6Qe_')
                             address = address_tag.text.strip() if address_tag else "Адрес не указан"
                             
-                            # Parse image
                             img_tag = item.select_one('img.styles_image__7aRPM')
                             image = (img_tag.get('src') or img_tag.get('data-src')) if img_tag else None
                             
-                            # Parse parameters
                             params_tag = item.select_one('p.styles_parameters__7zKlL')
                             params = KufarParser.parse_parameters(params_tag.text) if params_tag else {}
                             
@@ -244,23 +209,46 @@ class KufarParser:
                                 'source': 'Kufar',
                                 'city': city,
                                 'price': price,
+                                'title': description.split(',')[0] if ',' in description else description,
                                 'description': description,
                                 'address': address,
                                 'image': image,
                                 'user_id': None,
                                 **params
                             })
-                            
                         except Exception as e:
                             logger.error(f"Error parsing ad: {e}")
                             continue
                     
                     logger.info(f"Parsed {len(ads)} ads from Kufar for {city}")
-                    return ads
-                    
+                    return ads[:10]  # Ограничение на 10 объявлений
         except Exception as e:
             logger.error(f"Error fetching Kufar for {city}: {e}")
             return []
+
+    @staticmethod
+    def parse_parameters(param_text: str) -> dict:
+        """Parse apartment parameters from text"""
+        params = {'rooms': None, 'area': None, 'floor': None}
+        text = param_text.lower()
+        
+        if 'студия' in text:
+            params['rooms'] = 'studio'
+        else:
+            rooms_match = re.search(r'(\d+)\s*комн', text)
+            if rooms_match:
+                rooms = int(rooms_match.group(1))
+                params['rooms'] = f"{rooms}" if rooms < 4 else "4+"
+        
+        area_match = re.search(r'(\d+)\s*м²?', text)
+        if area_match:
+            params['area'] = int(area_match.group(1))
+        
+        floor_match = re.search(r'этаж\s*(\d+)\s*из\s*(\d+)', text)
+        if floor_match:
+            params['floor'] = f"{floor_match.group(1)}/{floor_match.group(2)}"
+        
+        return params
 
 # --- Database Operations ---
 def store_ads(ads: List[Dict]) -> int:
@@ -272,8 +260,8 @@ def store_ads(ads: List[Dict]) -> int:
         conn.autocommit = False
         with conn.cursor() as cur:
             upsert_query = """
-                INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, description, user_id, created_at, last_seen)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, title, description, user_id, created_at, last_seen)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT (link) DO UPDATE SET
                     last_seen = CURRENT_TIMESTAMP,
                     price = EXCLUDED.price,
@@ -282,6 +270,7 @@ def store_ads(ads: List[Dict]) -> int:
                     floor = EXCLUDED.floor,
                     address = EXCLUDED.address,
                     image = EXCLUDED.image,
+                    title = EXCLUDED.title,
                     description = EXCLUDED.description
                 RETURNING xmax;
             """
@@ -293,7 +282,7 @@ def store_ads(ads: List[Dict]) -> int:
                 values = (
                     ad.get("link"), ad.get("source"), ad.get("city"), ad.get("price"),
                     ad.get("rooms"), ad.get("area"), ad.get("floor"),
-                    ad.get("address"), ad.get("image"), ad.get("description"), 
+                    ad.get("address"), ad.get("image"), ad.get("title"), ad.get("description"), 
                     ad.get("user_id")
                 )
                 try:
@@ -334,7 +323,6 @@ async def fetch_and_store_all_ads():
                 total_new_ads += new_ads
             
             await asyncio.sleep(random.uniform(10, 20))
-            
         except Exception as e:
             logger.error(f"Error processing city {city}: {e}")
             continue
@@ -382,7 +370,6 @@ def get_ads_api():
                     params.append(rooms)
 
             query += " ORDER BY created_at DESC LIMIT 20"
-
             cur.execute(query, tuple(params))
             ads = [dict(row) for row in cur.fetchall()]
             logger.info(f"DB Query found {len(ads)} ads matching filters.")
@@ -718,10 +705,10 @@ class ApartmentBot:
 
                 if action == "approve":
                     cur.execute(
-                        """INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, description, user_id, created_at, last_seen)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (link) DO NOTHING""",
+                        """INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, title, description, user_id, created_at, last_seen)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (link) DO NOTHING""",
                         (f"user_listing_{listing_id}", "User", listing['city'], listing['price'], listing['rooms'],
-                         listing['area'], None, listing['address'], listing['image_filenames'], 
+                         listing['area'], None, listing['address'], listing['image_filenames'], listing['title'],
                          listing['description'], original_poster_id, listing['submitted_at'], listing['submitted_at'])
                     )
                     cur.execute("UPDATE pending_listings SET status = 'approved' WHERE id = %s", (listing_id,))
