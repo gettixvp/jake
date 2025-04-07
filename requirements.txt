@@ -1,7 +1,8 @@
-Flask>=2.3.2
-hypercorn>=0.14.4
-aiohttp>=3.8.5
-beautifulsoup4>=4.12.2
-psycopg2-binary>=2.9.9
-python-telegram-bot>=20.6
-apscheduler>=3.10.4
+flask[async]
+telegram
+python-telegram-bot
+beautifulsoup4
+aiohttp
+hypercorn
+psycopg2-binary
+selenium
