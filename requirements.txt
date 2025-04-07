@@ -1,8 +1,6 @@
-flask[async]
-telegram
-python-telegram-bot
-beautifulsoup4
-aiohttp
-hypercorn
-psycopg2-binary
-selenium
+flask==2.3.2
+python-telegram-bot==20.3
+selenium==4.10.0
+beautifulsoup4==4.12.2
+psycopg2-binary==2.9.6
+hypercorn==0.14.4
