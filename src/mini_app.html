@@ -520,6 +520,7 @@
             const tg = window.Telegram.WebApp;
             tg.ready();
             tg.expand();
+            tg.requestFullscreen(); // Автоматический полноэкранный режим при запуске
 
             const setHeaderColor = (colorScheme) => {
                 tg.setHeaderColor(colorScheme === 'dark' ? '#1f2937' : '#6366f1');
@@ -707,6 +708,26 @@
                     `;
                 }
 
+                async function promptCaptcha() {
+                    return new Promise((resolve) => {
+                        tg.showPopup({
+                            title: 'Капча',
+                            message: 'Обнаружена капча на Kufar. Введите код капчи:',
+                            buttons: [
+                                { id: 'captcha_input', type: 'input', placeholder: 'Введите код' },
+                                { id: 'submit', type: 'default', text: 'Отправить' },
+                                { id: 'cancel', type: 'destructive', text: 'Отмена' }
+                            ]
+                        }, (buttonId, inputValue) => {
+                            if (buttonId === 'submit' && inputValue) {
+                                resolve(inputValue);
+                            } else {
+                                resolve(null);
+                            }
+                        });
+                    });
+                }
+
                 const searchBtn = document.getElementById('search-btn');
                 const resultsContainer = document.getElementById('results-container');
                 const searchResultsSection = document.getElementById('search-results');
@@ -717,19 +738,49 @@
                         const rooms = document.getElementById('rooms').value;
                         const city = document.getElementById('city').value;
 
+                        if (!city) {
+                            tg.showAlert('Пожалуйста, выберите город.');
+                            hapticFeedback('error');
+                            return;
+                        }
+
                         resultsContainer.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Ищем варианты... <i class="fas fa-spinner fa-spin ml-1"></i></div>';
                         searchResultsSection.classList.remove('hidden');
                         hapticFeedback('light');
 
-                        const params = new URLSearchParams();
-                        if (minPrice) params.append('min_price', minPrice);
-                        if (maxPrice) params.append('max_price', maxPrice);
-                        if (rooms) params.append('rooms', rooms);
-                        if (city) params.append('city', city);
+                        const searchData = {
+                            user_id: userId,
+                            city: city,
+                            min_price: minPrice ? parseInt(minPrice) : null,
+                            max_price: maxPrice ? parseInt(maxPrice) : null,
+                            rooms: rooms || null
+                        };
 
                         try {
-                            const response = await fetch(`/api/ads?${params.toString()}`);
-                            const data = await response.json();
+                            let response = await fetch('/api/search', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(searchData)
+                            });
+                            let data = await response.json();
+
+                            if (data.error === 'CAPTCHA_REQUIRED') {
+                                const captchaCode = await promptCaptcha();
+                                if (!captchaCode) {
+                                    resultsContainer.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Поиск отменен.</div>';
+                                    hapticFeedback('warning');
+                                    return;
+                                }
+
+                                searchData.captcha_code = captchaCode;
+                                response = await fetch('/api/search', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(searchData)
+                                });
+                                data = await response.json();
+                            }
+
                             if (data.error) throw new Error(data.error);
 
                             resultsContainer.innerHTML = '';
