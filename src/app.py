@@ -31,8 +31,6 @@ except (ValueError, TypeError):
     exit(1)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgresql_6nv7_user:EQCCcg1l73t8S2g9sfF2LPVx6aA5yZts@dpg-cvlq2pggjchc738o29r0-a.frankfurt-postgres.render.com/postgresql_6nv7")
-PROXY_URL = "http://82.209.251.53:8080"
-
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15",
@@ -163,29 +161,35 @@ class KufarParser:
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
-        chrome_options.add_argument(f'--proxy-server={PROXY_URL}')
 
         driver = None
         try:
             driver = webdriver.Chrome(options=chrome_options)
             driver.get(base_url)
-            time.sleep(random.uniform(3, 5))
 
-            # Проверка наличия капчи
+            # Ожидаем загрузки списка объявлений
+            WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "article[data-name='listing-item']"))
+            )
+            time.sleep(random.uniform(2, 4))  # Дополнительная задержка для полной загрузки
+
+            # Проверяем наличие капчи
             if "captcha" in driver.page_source.lower() and not captcha_code:
                 logger.info("CAPTCHA detected, requesting user input.")
                 return [], True
 
             if captcha_code:
                 try:
-                    # Здесь предполагается, что на странице есть поле для ввода капчи с ID "captcha_input" и кнопка отправки
                     captcha_input = WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.ID, "captcha_input"))  # Замените на реальный ID
+                        EC.presence_of_element_located((By.ID, "captcha_input"))
                     )
                     captcha_input.send_keys(captcha_code)
-                    submit_button = driver.find_element(By.XPATH, "//button[@type='submit']")  # Замените на реальный XPath
+                    submit_button = driver.find_element(By.XPATH, "//button[@type='submit']")
                     submit_button.click()
                     time.sleep(2)
+                    WebDriverWait(driver, 15).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "article[data-name='listing-item']"))
+                    )
                 except Exception as e:
                     logger.error(f"Error entering CAPTCHA: {e}")
                     return [], False
@@ -193,26 +197,27 @@ class KufarParser:
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             ads = []
 
-            for item in soup.select('article.styles_wrapper__Q06m9'):
+            # Обновленные селекторы для Kufar (по состоянию на апрель 2025)
+            for item in soup.select("article[data-name='listing-item']"):
                 try:
-                    link_tag = item.select_one('a[href^="/l/"]')
+                    link_tag = item.select_one("a[href*='/item/']")
                     if not link_tag:
                         continue
-                    full_link = f"https://www.kufar.by{link_tag['href']}"
+                    full_link = link_tag['href']
 
-                    price_tag = item.select_one('span.styles_price__usd__HpXMa')
+                    price_tag = item.select_one("span[data-name='price-usd']")
                     price = int(re.sub(r'\D', '', price_tag.text)) if price_tag else None
 
-                    desc_tag = item.select_one('h3.styles_body__5BrnC.styles_body__r33c8')
+                    desc_tag = item.select_one("h3[data-name='title']")
                     description = desc_tag.text.strip() if desc_tag else "Нет описания"
 
-                    address_tag = item.select_one('p.styles_address__l6Qe_')
+                    address_tag = item.select_one("div[data-name='address']")
                     address = address_tag.text.strip() if address_tag else "Адрес не указан"
 
-                    img_tag = item.select_one('img.styles_image__7aRPM')
+                    img_tag = item.select_one("img[data-name='image']")
                     image = (img_tag.get('src') or img_tag.get('data-src')) if img_tag else None
 
-                    params_tag = item.select_one('p.styles_parameters__7zKlL')
+                    params_tag = item.select_one("div[data-name='parameters']")
                     params = KufarParser.parse_parameters(params_tag.text) if params_tag else {}
 
                     ads.append({
@@ -637,7 +642,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     return
 
                 if action == "approved":
-                    link = f"https://t.me/your_bot_name/listing_{listing_id}"  # Замените на реальный URL или ID
+                    link = f"https://t.me/your_bot_name/listing_{listing_id}"
                     cur.execute(
                         """
                         INSERT INTO ads (link, source, city, price, rooms, area, address, image, title, description, user_id)
