@@ -10,7 +10,7 @@ from typing import List, Dict, Optional
 from flask import Flask, request, jsonify, send_from_directory
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from telegram.error import Forbidden, TimedOut
+from telegram.error import Conflict, Forbidden, TimedOut
 from bs4 import BeautifulSoup
 import aiohttp
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -173,7 +173,7 @@ class KufarParser:
         
         try:
             async with aiohttp.ClientSession(headers=headers) as session:
-                await asyncio.sleep(random.uniform(15, 30))  # Увеличенная задержка
+                await asyncio.sleep(random.uniform(15, 30))
                 async with session.get(base_url, timeout=30) as response:
                     if response.status == 429:
                         logger.error(f"Rate limited for {city}, status: {response.status}")
@@ -226,7 +226,7 @@ class KufarParser:
                             continue
                     
                     logger.info(f"Parsed {len(ads)} ads from Kufar for {city}")
-                    return ads[:10]  # Ограничение на 10 объявлений
+                    return ads[:10]
         except Exception as e:
             logger.error(f"Error fetching Kufar for {city}: {e}")
             return []
@@ -327,7 +327,7 @@ async def fetch_and_store_all_ads():
                 new_ads = store_ads(city_ads)
                 total_new_ads += new_ads
             
-            await asyncio.sleep(random.uniform(20, 40))  # Увеличенная задержка между городами
+            await asyncio.sleep(random.uniform(20, 40))
         except Exception as e:
             logger.error(f"Error processing city {city}: {e}")
             continue
@@ -768,6 +768,19 @@ async def shutdown_application(application: Application, scheduler: AsyncIOSched
     await application.shutdown()
     logger.info("Application shutdown complete.")
 
+async def check_existing_bot(application: Application):
+    """Check if another instance is running by attempting to get updates."""
+    try:
+        updates = await application.bot.get_updates(timeout=1)
+        logger.info("No conflicting bot instances detected.")
+        return True
+    except Conflict:
+        logger.critical("Another bot instance is running with the same token. Exiting.")
+        return False
+    except Exception as e:
+        logger.error(f"Error checking bot status: {e}")
+        return True  # Продолжаем, если не уверены
+
 async def main():
     global bot_application
     logger.info("--- Application Starting ---")
@@ -779,6 +792,9 @@ async def main():
         return
 
     application = Application.builder().token(TELEGRAM_TOKEN).build()
+    if not await check_existing_bot(application):
+        return
+
     bot_instance = ApartmentBot(application)
     bot_application = application
     await bot_instance.setup_commands()
@@ -787,13 +803,13 @@ async def main():
     initial_run_time = datetime.datetime.now() + datetime.timedelta(seconds=15)
     scheduler.add_job(
         fetch_and_store_all_ads,
-        trigger=IntervalTrigger(minutes=30, start_date=initial_run_time),
+        trigger=IntervalTrigger(minutes=60, start_date=initial_run_time),  # Увеличено до 60 минут
         id='ad_parser_job',
         name='Fetch and Store Ads',
         replace_existing=True
     )
     scheduler.start()
-    logger.info(f"Scheduler started. First run at ~{initial_run_time.strftime('%H:%M:%S')}, then every 30 min.")
+    logger.info(f"Scheduler started. First run at ~{initial_run_time.strftime('%H:%M:%S')}, then every 60 min.")
 
     config = Config()
     port = int(os.environ.get("PORT", "10000"))
@@ -829,6 +845,7 @@ async def main():
             for task in done:
                 if task.exception():
                     logger.error(f"Task failed: {task.exception()}")
+                    raise task.exception()
                     
         except Exception as e:
             logger.error(f"Main loop error: {e}")
