@@ -1,24 +1,25 @@
 import logging
 import asyncio
 import re
-import urllib.parse
 import os
-import datetime
 import random
 import time
 from typing import List, Dict, Optional
 from flask import Flask, request, jsonify, send_from_directory
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from telegram.error import Conflict, Forbidden, TimedOut
+from telegram.error import Forbidden, TimedOut
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
-import aiohttp
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
 import hypercorn.asyncio
 from hypercorn.config import Config
 import psycopg2
 from psycopg2.extras import DictCursor
+import datetime
 
 # --- Configuration ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7846698102:AAFR2bhmjAkPiV-PjtnFIu_oRnzxYPP1xVo")
@@ -30,6 +31,7 @@ except (ValueError, TypeError):
     exit(1)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgresql_6nv7_user:EQCCcg1l73t8S2g9sfF2LPVx6aA5yZts@dpg-cvlq2pggjchc738o29r0-a.frankfurt-postgres.render.com/postgresql_6nv7")
+PROXY_URL = "http://82.209.251.53:8080"
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
@@ -46,11 +48,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
-logging.getLogger('apscheduler.scheduler').setLevel(logging.WARNING)
-logging.getLogger('apscheduler.executors').setLevel(logging.WARNING)
-logging.getLogger('httpx').setLevel(logging.WARNING)
-logging.getLogger('httpcore').setLevel(logging.WARNING)
-logging.getLogger('urllib3.connectionpool').setLevel(logging.INFO)
 
 # --- Constants ---
 CITIES = {
@@ -144,7 +141,7 @@ def init_db():
         finally:
             if conn: conn.close()
     else:
-        logger.critical("Failed to initialize database after multiple retries. Check connection string and DB status.")
+        logger.critical("Failed to initialize database after multiple retries.")
         raise ConnectionError("Could not initialize the database.")
 
 # --- Flask Application Setup ---
@@ -153,83 +150,95 @@ app = Flask(__name__)
 # --- Global variable for Telegram application ---
 bot_application = None
 
-# --- Kufar Parser ---
+# --- Kufar Parser with Selenium ---
 class KufarParser:
     @staticmethod
-    async def fetch_ads(city: str) -> List[Dict]:
-        """Fetch ads from Kufar for a specific city"""
-        headers = {
-            "User-Agent": random.choice(USER_AGENTS),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Referer": "https://www.kufar.by/",
-            "DNT": "1",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1"
-        }
-        
+    def fetch_ads(city: str, captcha_code: Optional[str] = None) -> tuple[List[Dict], bool]:
+        """Fetch ads from Kufar using Selenium with CAPTCHA handling"""
         base_url = f"https://www.kufar.by/l/r~{city}/snyat/kvartiru-dolgosrochno?cur=USD"
         logger.info(f"Kufar Request URL: {base_url}")
-        
+
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
+        chrome_options.add_argument(f'--proxy-server={PROXY_URL}')
+
+        driver = None
         try:
-            async with aiohttp.ClientSession(headers=headers) as session:
-                await asyncio.sleep(random.uniform(15, 30))
-                async with session.get(base_url, timeout=30) as response:
-                    if response.status == 429:
-                        logger.error(f"Rate limited for {city}, status: {response.status}")
-                        return []
-                    
-                    html = await response.text()
-                    if "captcha" in html.lower():
-                        logger.error("Kufar CAPTCHA detected! Consider using proxies or CAPTCHA solving services.")
-                        return []
-                    
-                    soup = BeautifulSoup(html, 'html.parser')
-                    ads = []
-                    
-                    for item in soup.select('article.styles_wrapper__Q06m9'):
-                        try:
-                            link_tag = item.select_one('a[href^="/l/"]')
-                            if not link_tag:
-                                continue
-                            full_link = f"https://www.kufar.by{link_tag['href']}"
-                            
-                            price_tag = item.select_one('span.styles_price__usd__HpXMa')
-                            price = int(re.sub(r'\D', '', price_tag.text)) if price_tag else None
-                            
-                            desc_tag = item.select_one('h3.styles_body__5BrnC.styles_body__r33c8')
-                            description = desc_tag.text.strip() if desc_tag else "Нет описания"
-                            
-                            address_tag = item.select_one('p.styles_address__l6Qe_')
-                            address = address_tag.text.strip() if address_tag else "Адрес не указан"
-                            
-                            img_tag = item.select_one('img.styles_image__7aRPM')
-                            image = (img_tag.get('src') or img_tag.get('data-src')) if img_tag else None
-                            
-                            params_tag = item.select_one('p.styles_parameters__7zKlL')
-                            params = KufarParser.parse_parameters(params_tag.text) if params_tag else {}
-                            
-                            ads.append({
-                                'link': full_link,
-                                'source': 'Kufar',
-                                'city': city,
-                                'price': price,
-                                'title': description.split(',')[0] if ',' in description else description,
-                                'description': description,
-                                'address': address,
-                                'image': image,
-                                'user_id': None,
-                                **params
-                            })
-                        except Exception as e:
-                            logger.error(f"Error parsing ad: {e}")
-                            continue
-                    
-                    logger.info(f"Parsed {len(ads)} ads from Kufar for {city}")
-                    return ads[:10]
+            driver = webdriver.Chrome(options=chrome_options)
+            driver.get(base_url)
+            time.sleep(random.uniform(3, 5))
+
+            # Проверка наличия капчи
+            if "captcha" in driver.page_source.lower() and not captcha_code:
+                logger.info("CAPTCHA detected, requesting user input.")
+                return [], True
+
+            if captcha_code:
+                try:
+                    # Здесь предполагается, что на странице есть поле для ввода капчи с ID "captcha_input" и кнопка отправки
+                    captcha_input = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.ID, "captcha_input"))  # Замените на реальный ID
+                    )
+                    captcha_input.send_keys(captcha_code)
+                    submit_button = driver.find_element(By.XPATH, "//button[@type='submit']")  # Замените на реальный XPath
+                    submit_button.click()
+                    time.sleep(2)
+                except Exception as e:
+                    logger.error(f"Error entering CAPTCHA: {e}")
+                    return [], False
+
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            ads = []
+
+            for item in soup.select('article.styles_wrapper__Q06m9'):
+                try:
+                    link_tag = item.select_one('a[href^="/l/"]')
+                    if not link_tag:
+                        continue
+                    full_link = f"https://www.kufar.by{link_tag['href']}"
+
+                    price_tag = item.select_one('span.styles_price__usd__HpXMa')
+                    price = int(re.sub(r'\D', '', price_tag.text)) if price_tag else None
+
+                    desc_tag = item.select_one('h3.styles_body__5BrnC.styles_body__r33c8')
+                    description = desc_tag.text.strip() if desc_tag else "Нет описания"
+
+                    address_tag = item.select_one('p.styles_address__l6Qe_')
+                    address = address_tag.text.strip() if address_tag else "Адрес не указан"
+
+                    img_tag = item.select_one('img.styles_image__7aRPM')
+                    image = (img_tag.get('src') or img_tag.get('data-src')) if img_tag else None
+
+                    params_tag = item.select_one('p.styles_parameters__7zKlL')
+                    params = KufarParser.parse_parameters(params_tag.text) if params_tag else {}
+
+                    ads.append({
+                        'link': full_link,
+                        'source': 'Kufar',
+                        'city': city,
+                        'price': price,
+                        'title': description.split(',')[0] if ',' in description else description,
+                        'description': description,
+                        'address': address,
+                        'image': image,
+                        'user_id': None,
+                        **params
+                    })
+                except Exception as e:
+                    logger.error(f"Error parsing ad: {e}")
+                    continue
+
+            logger.info(f"Parsed {len(ads)} ads from Kufar for {city}")
+            return ads[:10], False
         except Exception as e:
             logger.error(f"Error fetching Kufar for {city}: {e}")
-            return []
+            return [], False
+        finally:
+            if driver:
+                driver.quit()
 
     @staticmethod
     def parse_parameters(param_text: str) -> dict:
@@ -314,88 +323,49 @@ def store_ads(ads: List[Dict]) -> int:
     finally:
         if conn: conn.close()
 
-# --- Background Parsing Task ---
-async def fetch_and_store_all_ads():
-    logger.info("--- Starting Periodic Ad Fetching Task ---")
-    start_time = time.time()
-    total_new_ads = 0
-
-    for city in CITIES.keys():
-        try:
-            city_ads = await KufarParser.fetch_ads(city)
-            if city_ads:
-                new_ads = store_ads(city_ads)
-                total_new_ads += new_ads
-            
-            await asyncio.sleep(random.uniform(20, 40))
-        except Exception as e:
-            logger.error(f"Error processing city {city}: {e}")
-            continue
-
-    end_time = time.time()
-    logger.info(f"--- Finished Periodic Ad Fetching Task ---")
-    logger.info(f"Total New Ads Found: {total_new_ads}")
-    logger.info(f"Duration: {end_time - start_time:.2f} seconds")
-
 # --- Flask API Endpoints ---
-@app.route('/api/ads', methods=['GET'])
-def get_ads_api():
-    city = request.args.get('city')
-    min_price_str = request.args.get('min_price')
-    max_price_str = request.args.get('max_price')
-    rooms = request.args.get('rooms')
+@app.route('/api/search', methods=['POST'])
+def search_api():
+    data = request.json
+    if not data or 'user_id' not in data or 'city' not in data:
+        logger.warning("Missing user_id or city in /api/search request")
+        return jsonify({"error": "Missing user_id or city"}), 400
 
-    min_price = int(min_price_str) if min_price_str and min_price_str.isdigit() else None
-    max_price = int(max_price_str) if max_price_str and max_price_str.isdigit() else None
+    user_id = data['user_id']
+    city = data['city']
+    min_price = data.get('min_price', type=int)
+    max_price = data.get('max_price', type=int)
+    rooms = data.get('rooms')
+    captcha_code = data.get('captcha_code')
 
-    logger.info(f"API Request /api/ads: city={city}, min_p={min_price}, max_p={max_price}, rooms={rooms}")
-    conn = None
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            query = "SELECT * FROM ads WHERE 1=1"
-            params = []
+    logger.info(f"Search request from user {user_id}: city={city}, min_price={min_price}, max_price={max_price}, rooms={rooms}, captcha={captcha_code is not None}")
 
-            if city:
-                query += " AND city = %s"
-                params.append(city)
-            if min_price is not None:
-                query += " AND price >= %s"
-                params.append(min_price)
-            if max_price is not None:
-                query += " AND price <= %s"
-                params.append(max_price)
-            if rooms:
-                if rooms == '4+':
-                    query += " AND (rooms = '4+' OR (rooms ~ E'^\\\\d+$' AND CAST(rooms AS INTEGER) >= 4))"
-                elif rooms == 'studio':
-                    query += " AND rooms = 'studio'"
-                elif rooms.isdigit():
-                    query += " AND rooms = %s"
-                    params.append(rooms)
+    if city not in CITIES:
+        return jsonify({"error": "Invalid city"}), 400
 
-            query += " ORDER BY created_at DESC LIMIT 20"
-            cur.execute(query, tuple(params))
-            ads = [dict(row) for row in cur.fetchall()]
-            logger.info(f"DB Query found {len(ads)} ads matching filters.")
+    ads, captcha_required = KufarParser.fetch_ads(city, captcha_code)
+    if captcha_required:
+        return jsonify({"error": "CAPTCHA_REQUIRED"}), 403
 
-            response_data = []
-            for ad in ads:
-                ad['created_at'] = ad['created_at'].isoformat() if ad.get('created_at') else None
-                ad['last_seen'] = ad['last_seen'].isoformat() if ad.get('last_seen') else None
-                response_data.append(ad)
+    if not ads:
+        return jsonify({"error": "No ads found or parsing failed"}), 500
 
-            logger.info(f"API Response: Returning {len(response_data)} ads.")
-            return jsonify({"ads": response_data})
+    filtered_ads = [ad for ad in ads if (
+        (min_price is None or ad['price'] >= min_price) and
+        (max_price is None or ad['price'] <= max_price) and
+        (rooms is None or ad['rooms'] == rooms)
+    )]
 
-    except psycopg2.Error as db_err:
-        logger.error(f"Database error in /api/ads: {db_err}")
-        return jsonify({"error": "Database Error", "details": str(db_err)}), 500
-    except Exception as e:
-        logger.exception(f"Unexpected error in /api/ads: {e}")
-        return jsonify({"error": "Internal Server Error"}), 500
-    finally:
-        if conn: conn.close()
+    store_ads(filtered_ads)
+
+    response_data = []
+    for ad in filtered_ads[:10]:
+        ad['created_at'] = ad.get('created_at', datetime.datetime.now()).isoformat()
+        ad['last_seen'] = ad.get('last_seen', datetime.datetime.now()).isoformat()
+        response_data.append(ad)
+
+    logger.info(f"Returning {len(response_data)} ads to user {user_id}")
+    return jsonify({"ads": response_data})
 
 @app.route('/api/register_user', methods=['POST'])
 def register_user_api():
@@ -498,393 +468,230 @@ async def add_listing_api():
                      InlineKeyboardButton("❌ Reject", callback_data=f"reject_{listing_id}")]
                 ])
                 message_text = (
-                    f"🆕 Moderation Request (ID: {listing_id})\n"
-                    f"👤 User: {user_id}\n"
-                    f"🏠 Title: {title}\n💲 ${price} | {rooms}r | {area or '?'}m²\n"
-                    f"📍 {city}, {address or 'N/A'}\n"
-                    f"📝 {description or '-'}\n"
-                    f"🖼️ Files: {image_filenames or 'None'}"
+                    f"Новое объявление #{listing_id} от пользователя {user_id}:\n"
+                    f"🏠 {title}\n"
+                    f"💰 ${price}/месяц\n"
+                    f"🛋️ Комнаты: {rooms}\n"
+                    f"📏 Площадь: {area or 'Не указано'} м²\n"
+                    f"🌆 Город: {CITIES.get(city, city)}\n"
+                    f"📍 Адрес: {address or 'Не указан'}\n"
+                    f"📝 Описание: {description or 'Нет'}\n"
+                    f"📸 Фото: {image_filenames or 'Нет'}"
                 )
                 await bot_application.bot.send_message(
-                    chat_id=ADMIN_ID, text=message_text, reply_markup=keyboard
+                    chat_id=ADMIN_ID,
+                    text=message_text,
+                    reply_markup=keyboard
                 )
-                logger.info(f"Admin notification sent for listing {listing_id}")
-            except Exception as bot_err:
-                logger.error(f"Failed to send admin notification for {listing_id}: {bot_err}")
-                return jsonify({"error": "Failed to notify admin", "details": str(bot_err)}), 500
+                logger.info(f"Sent moderation request for listing {listing_id} to admin {ADMIN_ID}")
+            except Exception as e:
+                logger.error(f"Failed to send moderation request for listing {listing_id}: {e}")
 
-        return jsonify({"status": "pending", "listing_id": listing_id})
-
+        return jsonify({"status": "success", "listing_id": listing_id})
     except psycopg2.Error as db_err:
-        logger.error(f"DB error in add_listing: {db_err}")
+        logger.error(f"DB error adding listing for user {user_id}: {db_err}")
         if conn: conn.rollback()
-        return jsonify({"error": "Database Error", "details": str(db_err)}), 500
+        return jsonify({"error": "Database Error"}), 500
     except Exception as e:
-        logger.exception(f"Unexpected error in /api/add_listing: {e}")
+        logger.exception(f"Unexpected error in add_listing_api for user {user_id}: {e}")
         if conn: conn.rollback()
-        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
-    finally:
-        if conn: conn.close()
-
-@app.route('/api/new_listings', methods=['GET'])
-def get_new_listings_api():
-    user_id = request.args.get('user_id', type=int)
-    if not user_id:
-        logger.warning("Received /api/new_listings request with missing user_id")
-        return jsonify({"error": "Missing user_id"}), 400
-
-    conn = None
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("""
-                SELECT a.*
-                FROM ads a
-                LEFT JOIN users u ON u.id = %s
-                WHERE a.created_at > COALESCE(u.created_at, '1970-01-01')
-                AND (a.user_id IS NULL OR a.user_id != %s)
-                ORDER BY a.created_at DESC
-                LIMIT 20
-            """, (user_id, user_id))
-            ads = [dict(row) for row in cur.fetchall()]
-            logger.info(f"Found {len(ads)} new listings for user {user_id}")
-
-            response_data = []
-            for ad in ads:
-                ad['created_at'] = ad['created_at'].isoformat() if ad.get('created_at') else None
-                ad['last_seen'] = ad['last_seen'].isoformat() if ad.get('last_seen') else None
-                response_data.append(ad)
-
-            return jsonify({"ads": response_data})
-
-    except psycopg2.Error as db_err:
-        logger.error(f"Database error in /api/new_listings: {db_err}")
-        return jsonify({"error": "Database Error", "details": str(db_err)}), 500
-    except Exception as e:
-        logger.exception(f"Unexpected error in /api/new_listings: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
     finally:
         if conn: conn.close()
 
 @app.route('/api/user_listings', methods=['GET'])
-def get_user_listings_api():
+def user_listings_api():
     user_id = request.args.get('user_id', type=int)
     if not user_id:
-        logger.warning("Received /api/user_listings request with missing user_id")
+        logger.warning("Missing user_id in /api/user_listings request")
         return jsonify({"error": "Missing user_id"}), 400
 
     conn = None
     try:
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("SELECT * FROM ads WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
-            ads = [dict(row) for row in cur.fetchall()]
-            logger.info(f"Found {len(ads)} user listings for user {user_id}")
-
-            response_data = []
-            for ad in ads:
-                ad['created_at'] = ad['created_at'].isoformat() if ad.get('created_at') else None
-                ad['last_seen'] = ad['last_seen'].isoformat() if ad.get('last_seen') else None
-                response_data.append(ad)
-
-            return jsonify({"ads": response_data})
-
+            cur.execute(
+                """
+                SELECT link, source, city, price, rooms, area, floor, address, image, title, description, created_at, last_seen
+                FROM ads
+                WHERE user_id = %s AND source = 'User'
+                ORDER BY created_at DESC;
+                """,
+                (user_id,)
+            )
+            ads = cur.fetchall()
+        logger.info(f"Retrieved {len(ads)} user listings for user {user_id}")
+        return jsonify({"ads": [dict(ad) for ad in ads]})
     except psycopg2.Error as db_err:
-        logger.error(f"Database error in /api/user_listings: {db_err}")
-        return jsonify({"error": "Database Error", "details": str(db_err)}), 500
+        logger.error(f"DB error fetching user listings for {user_id}: {db_err}")
+        return jsonify({"error": "Database Error"}), 500
     except Exception as e:
-        logger.exception(f"Unexpected error in /api/user_listings: {e}")
+        logger.exception(f"Unexpected error in user_listings_api for {user_id}: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
     finally:
         if conn: conn.close()
 
-# --- Flask Routes for Serving Files ---
+@app.route('/api/ads', methods=['GET'])
+def ads_api():
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute(
+                """
+                SELECT link, source, city, price, rooms, area, floor, address, image, title, description, user_id, created_at, last_seen
+                FROM ads
+                WHERE source = 'Kufar'
+                ORDER BY created_at DESC
+                LIMIT 10;
+                """
+            )
+            ads = cur.fetchall()
+        logger.info(f"Retrieved {len(ads)} popular ads")
+        return jsonify({"ads": [dict(ad) for ad in ads]})
+    except psycopg2.Error as db_err:
+        logger.error(f"DB error fetching ads: {db_err}")
+        return jsonify({"error": "Database Error"}), 500
+    except Exception as e:
+        logger.exception(f"Unexpected error in ads_api: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/new_listings', methods=['GET'])
+def new_listings_api():
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        logger.warning("Missing user_id in /api/new_listings request")
+        return jsonify({"error": "Missing user_id"}), 400
+
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute(
+                """
+                SELECT link, source, city, price, rooms, area, floor, address, image, title, description, user_id, created_at, last_seen
+                FROM ads
+                WHERE source = 'Kufar' AND created_at > NOW() - INTERVAL '24 hours'
+                ORDER BY created_at DESC
+                LIMIT 10;
+                """
+            )
+            ads = cur.fetchall()
+        logger.info(f"Retrieved {len(ads)} new listings for user {user_id}")
+        return jsonify({"ads": [dict(ad) for ad in ads]})
+    except psycopg2.Error as db_err:
+        logger.error(f"DB error fetching new listings for {user_id}: {db_err}")
+        return jsonify({"error": "Database Error"}), 500
+    except Exception as e:
+        logger.exception(f"Unexpected error in new_listings_api for {user_id}: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+    finally:
+        if conn: conn.close()
+
 @app.route('/')
-def index():
-    logger.debug("Serving index page")
-    return ('<html><head><title>Apartment Bot</title></head>'
-            '<body><h1>Apartment Bot Backend</h1>'
-            '<p>Open the Mini App in Telegram via the bot.</p>'
-            '</body></html>')
+@app.route('/mini_app.html')
+def serve_mini_app():
+    return send_from_directory('.', 'mini_app.html')
 
-@app.route('/mini-app')
-def mini_app_route():
-    html_file = "mini_app.html"
-    root_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(root_dir, html_file)
-    if not os.path.exists(file_path):
-        logger.error(f"HTML file not found at expected path: {file_path}")
-        return "Error: Mini App interface file not found.", 404
-    logger.info(f"Serving {html_file} from {root_dir}")
-    return send_from_directory(root_dir, html_file)
+# --- Telegram Bot Handlers ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    logger.info(f"User {user_id} started the bot")
+    web_app_url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'localhost:10000')}/mini_app.html"
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Открыть Поиск Квартир", web_app=web_app_url)]
+    ])
+    await update.message.reply_text(
+        "Добро пожаловать в бот поиска квартир!\n"
+        "Используйте кнопку ниже, чтобы открыть приложение:",
+        reply_markup=keyboard
+    )
 
-# --- Telegram Bot Class ---
-class ApartmentBot:
-    def __init__(self, application: Application):
-        self.application = application
-        self._setup_handlers()
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    logger.info(f"Callback query received: {data}")
 
-    def _setup_handlers(self):
-        self.application.add_handler(CommandHandler("start", self.start))
-        self.application.add_handler(CommandHandler("help", self.help))
-        self.application.add_handler(CallbackQueryHandler(self.handle_callback))
-
-    async def setup_commands(self):
-        commands = [
-            BotCommand("start", "🚀 Запустить Поиск Квартир"),
-            BotCommand("help", "ℹ️ Получить помощь")
-        ]
-        try:
-            await self.application.bot.set_my_commands(commands)
-            logger.info("Bot commands set.")
-        except Exception as e:
-            logger.error(f"Failed to set bot commands: {e}")
-
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = update.effective_user
-        user_id, first_name, last_name, username = user.id, user.first_name, user.last_name, user.username
-        logger.info(f"/start from user {user_id} ({username or 'no_username'})")
-
-        conn = None
-        try:
-            conn = psycopg2.connect(DATABASE_URL)
-            with conn.cursor() as cur:
-                cur.execute(
-                    """INSERT INTO users (id, first_name, last_name, username) VALUES (%s, %s, %s, %s)
-                       ON CONFLICT (id) DO UPDATE SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, username = EXCLUDED.username;""",
-                    (user_id, first_name, last_name, username)
-                )
-                conn.commit()
-        except Exception as e:
-            logger.error(f"DB error saving user {user_id}: {e}")
-            if conn: conn.rollback()
-        finally:
-            if conn: conn.close()
-
-        host = os.environ.get('RENDER_EXTERNAL_HOSTNAME', "apartment-bot.onrender.com")
-        web_app_url = f"https://{host}/mini-app"
-        logger.info(f"Web App URL for user {user_id}: {web_app_url}")
-
-        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Открыть Поиск Квартир 🏠", web_app={"url": web_app_url})]])
-        await update.message.reply_text("👋 Нажмите кнопку ниже, чтобы найти квартиру:", reply_markup=keyboard)
-
-    async def help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = update.effective_user
-        user_id, username = user.id, user.username
-        logger.info(f"/help from user {user_id} ({username or 'no_username'})")
-        help_text = (
-            "ℹ️ **Помощь по боту**\n\n"
-            "Я помогу вам найти квартиру для долгосрочной аренды в Беларуси.\n"
-            "Используйте команду /start, чтобы открыть интерфейс поиска.\n"
-            "Вы можете фильтровать объявления по городу, цене и количеству комнат.\n"
-            "Также вы можете добавить свое объявление через интерфейс.\n\n"
-            "Если у вас есть вопросы, свяжитесь с администратором."
-        )
-        await update.message.reply_text(help_text)
-
-    async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        query = update.callback_query
-        user = query.from_user
-        if user.id != ADMIN_ID:
-            await query.answer("⛔ Access Denied", show_alert=True)
+    if data.startswith("approve_") or data.startswith("reject_"):
+        if update.effective_user.id != ADMIN_ID:
+            await query.edit_message_text("У вас нет прав для модерации.")
             return
 
-        await query.answer()
-        data = query.data
-        action, listing_id_str = data.split("_", 1)
-        listing_id = int(listing_id_str)
-        logger.info(f"Admin action '{action}' for listing_id {listing_id}")
-
+        listing_id = int(data.split("_")[1])
+        action = "approved" if data.startswith("approve_") else "rejected"
         conn = None
         try:
             conn = psycopg2.connect(DATABASE_URL)
             conn.autocommit = False
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                cur.execute("SELECT * FROM pending_listings WHERE id = %s", (listing_id,))
+                cur.execute(
+                    "UPDATE pending_listings SET status = %s WHERE id = %s RETURNING *;",
+                    (action, listing_id)
+                )
                 listing = cur.fetchone()
                 if not listing:
-                    await query.edit_message_text(f"⚠️ Listing {listing_id} not found or already processed.")
+                    await query.edit_message_text(f"Объявление #{listing_id} не найдено.")
                     return
 
-                original_poster_id = listing['user_id']
-                listing_title_short = listing['title'][:50] + ('...' if len(listing['title']) > 50 else '')
-
-                if action == "approve":
+                if action == "approved":
+                    link = f"https://t.me/your_bot_name/listing_{listing_id}"  # Замените на реальный URL или ID
                     cur.execute(
-                        """INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, title, description, user_id, created_at, last_seen)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (link) DO NOTHING""",
-                        (f"user_listing_{listing_id}", "User", listing['city'], listing['price'], listing['rooms'],
-                         listing['area'], None, listing['address'], listing['image_filenames'], listing['title'],
-                         listing['description'], original_poster_id, listing['submitted_at'], listing['submitted_at'])
+                        """
+                        INSERT INTO ads (link, source, city, price, rooms, area, address, image, title, description, user_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                        """,
+                        (link, 'User', listing['city'], listing['price'], listing['rooms'], listing['area'],
+                         listing['address'], listing['image_filenames'], listing['title'], listing['description'],
+                         listing['user_id'])
                     )
-                    cur.execute("UPDATE pending_listings SET status = 'approved' WHERE id = %s", (listing_id,))
-                    conn.commit()
-                    await query.edit_message_text(f"✅ Approved & Published: Listing {listing_id}")
-                    logger.info(f"Listing {listing_id} approved.")
-                    try:
-                        await context.bot.send_message(original_poster_id, f"🎉 Ваше объявление '{listing_title_short}' одобрено!")
-                    except Exception as notify_err:
-                        logger.warning(f"Failed to notify user {original_poster_id} of approval: {notify_err}")
+                conn.commit()
 
-                elif action == "reject":
-                    cur.execute("UPDATE pending_listings SET status = 'rejected' WHERE id = %s", (listing_id,))
-                    conn.commit()
-                    await query.edit_message_text(f"❌ Rejected: Listing {listing_id}")
-                    logger.info(f"Listing {listing_id} rejected.")
-                    try:
-                        await context.bot.send_message(original_poster_id, f"😔 Ваше объявление '{listing_title_short}' отклонено.")
-                    except Exception as notify_err:
-                        logger.warning(f"Failed to notify user {original_poster_id} of rejection: {notify_err}")
-
+                status_text = "одобрено" if action == "approved" else "отклонено"
+                await query.edit_message_text(f"Объявление #{listing_id} {status_text}.")
+                await context.bot.send_message(
+                    chat_id=listing['user_id'],
+                    text=f"Ваше объявление '{listing['title']}' было {status_text} администратором."
+                )
+                logger.info(f"Listing {listing_id} {action} by admin {ADMIN_ID}")
         except psycopg2.Error as db_err:
-            logger.error(f"DB error handling callback for {listing_id}: {db_err}")
+            logger.error(f"DB error processing {action} for listing {listing_id}: {db_err}")
             if conn: conn.rollback()
-            try: await query.edit_message_text("⚠️ Database error.")
-            except: pass
+            await query.edit_message_text("Ошибка базы данных при обработке объявления.")
         except Exception as e:
-            logger.exception(f"Unexpected error handling callback {listing_id}: {e}")
+            logger.exception(f"Unexpected error processing {action} for listing {listing_id}: {e}")
             if conn: conn.rollback()
-            try: await query.edit_message_text("⚠️ Internal error.")
-            except: pass
+            await query.edit_message_text("Произошла ошибка при обработке объявления.")
         finally:
             if conn: conn.close()
 
-# --- Main Application Logic ---
-async def shutdown_application(application: Application, scheduler: AsyncIOScheduler):
-    logger.info("Initiating shutdown...")
-    if scheduler.running:
-        scheduler.shutdown(wait=False)
-        logger.info("Scheduler stopped.")
-    
-    await application.stop()
-    logger.info("Application polling stopped.")
-    
-    try:
-        await application.updater.stop()
-        logger.info("Updater stopped successfully.")
-    except Exception as e:
-        logger.error(f"Error stopping updater: {e}")
-    
-    await application.shutdown()
-    logger.info("Application shutdown complete.")
-
-async def check_existing_bot(application: Application):
-    """Check if another instance is running by attempting to get updates."""
-    try:
-        updates = await application.bot.get_updates(timeout=1)
-        logger.info("No conflicting bot instances detected.")
-        return True
-    except Conflict:
-        logger.critical("Another bot instance is running with the same token. Exiting.")
-        return False
-    except Exception as e:
-        logger.error(f"Error checking bot status: {e}")
-        return True  # Продолжаем, если не уверены
-
-async def main():
+# --- Telegram Bot Setup ---
+async def setup_bot():
     global bot_application
-    logger.info("--- Application Starting ---")
+    bot_application = Application.builder().token(TELEGRAM_TOKEN).build()
+    
+    bot_application.add_handler(CommandHandler("start", start))
+    bot_application.add_handler(CallbackQueryHandler(button_handler))
 
-    try:
-        init_db()
-    except ConnectionError:
-        logger.critical("Stopping application due to DB initialization failure.")
-        return
+    await bot_application.bot.set_my_commands([
+        BotCommand("start", "Запустить бота")
+    ])
+    logger.info("Telegram bot handlers set up.")
 
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-    if not await check_existing_bot(application):
-        return
-
-    bot_instance = ApartmentBot(application)
-    bot_application = application
-    await bot_instance.setup_commands()
-
-    scheduler = AsyncIOScheduler(timezone="Europe/Minsk")
-    initial_run_time = datetime.datetime.now() + datetime.timedelta(seconds=15)
-    scheduler.add_job(
-        fetch_and_store_all_ads,
-        trigger=IntervalTrigger(minutes=60, start_date=initial_run_time),  # Увеличено до 60 минут
-        id='ad_parser_job',
-        name='Fetch and Store Ads',
-        replace_existing=True
-    )
-    scheduler.start()
-    logger.info(f"Scheduler started. First run at ~{initial_run_time.strftime('%H:%M:%S')}, then every 60 min.")
+# --- Main Execution ---
+async def main():
+    init_db()
+    await setup_bot()
 
     config = Config()
-    port = int(os.environ.get("PORT", "10000"))
-    config.bind = [f"0.0.0.0:{port}"]
-    config.use_reloader = bool(os.environ.get("DEBUG"))
-    config.accesslog = logger
-    config.errorlog = logger
-    logger.info(f"Hypercorn configured for 0.0.0.0:{port}")
-
-    logger.info("Starting Telegram bot polling and Hypercorn server...")
-
-    async with application:
-        await application.initialize()
-        await application.start()
-        
-        polling_task = asyncio.create_task(
-            application.updater.start_polling(
-                allowed_updates=Update.ALL_TYPES,
-                drop_pending_updates=True
-            )
-        )
-        
-        hypercorn_task = asyncio.create_task(
-            hypercorn.asyncio.serve(app, config)
-        )
-
-        try:
-            done, pending = await asyncio.wait(
-                [polling_task, hypercorn_task],
-                return_when=asyncio.FIRST_EXCEPTION
-            )
-            
-            for task in done:
-                if task.exception():
-                    logger.error(f"Task failed: {task.exception()}")
-                    raise task.exception()
-                    
-        except Exception as e:
-            logger.error(f"Main loop error: {e}")
-        finally:
-            if not polling_task.done():
-                polling_task.cancel()
-            if not hypercorn_task.done():
-                hypercorn_task.cancel()
-            
-            await shutdown_application(application, scheduler)
-
-    logger.info("--- Application Shutdown Complete ---")
+    config.bind = ["0.0.0.0:10000"]
+    await hypercorn.asyncio.serve(app, config, shutdown_trigger=lambda: asyncio.Future())
 
 if __name__ == "__main__":
-    pid_file = "/tmp/apartment_bot.pid"
-    if os.path.exists(pid_file):
-        with open(pid_file, 'r') as f:
-            pid = int(f.read().strip())
-        try:
-            os.kill(pid, 0)
-            logger.critical(f"Another instance is already running with PID {pid}. Exiting.")
-            exit(1)
-        except OSError:
-            logger.info("Stale PID file found. Removing and proceeding.")
-            os.remove(pid_file)
-
-    with open(pid_file, 'w') as f:
-        f.write(str(os.getpid()))
-
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        logger.info("Application stopped manually (KeyboardInterrupt).")
+        asyncio.run(main())
     except Exception as e:
-        logger.critical(f"Application crashed: {e}", exc_info=True)
-    finally:
-        if os.path.exists(pid_file):
-            os.remove(pid_file)
-        if not loop.is_closed():
-            loop.close()
+        logger.critical(f"Fatal error in main: {e}")
+        exit(1)
