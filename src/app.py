@@ -596,7 +596,7 @@ def new_listings_api():
         if conn: conn.close()
 
 @app.route('/')
-@app.route('/mini_app.html')
+@app.route('src/mini_app.html')
 def serve_mini_app():
     return send_from_directory('.', 'mini_app.html')
 
