@@ -596,7 +596,7 @@ def new_listings_api():
         if conn: conn.close()
 
 @app.route('/')
-@app.route('src/mini_app.html')
+@app.route('.src/mini_app.html')
 def serve_mini_app():
     return send_from_directory('.', 'mini_app.html')
 
@@ -604,7 +604,7 @@ def serve_mini_app():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     logger.info(f"User {user_id} started the bot")
-    web_app_url = f"https://{os.environ.get('https://jake-3.onrender.com', 'localhost:10000')}/mini_app.html"
+    web_app_url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'localhost:10000')}/mini_app.html"
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("Открыть Поиск Квартир", web_app=web_app_url)]
     ])
