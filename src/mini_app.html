@@ -264,6 +264,33 @@
             transition: transform 0.2s ease;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
+        /* Стили для капчи */
+        .captcha-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        .captcha-modal.active {
+            display: flex;
+        }
+        .captcha-content {
+            background: var(--tg-theme-bg-color, #f8fafc);
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+        body.dark .captcha-content {
+            background: #1e293b;
+        }
     </style>
 </head>
 <body class="bg-soft-light">
@@ -453,596 +480,404 @@
 
                 <div class="mb-6">
                     <h3 class="text-xs font-semibold text-soft-gray uppercase tracking-wider mb-3">Настройки</h3>
-                    <div class="soft-card shadow-soft divide-y divide-gray-200 dark:divide-gray-700 overflow-hidden">
-                        <div class="p-4 flex items-center justify-between">
+                    <div class="soft-card shadow-soft divide-y divide-gray-200 dark:divide-gray-700">
+                        <div class="flex items-center justify-between p-4">
+                            <span class="text-sm font-medium text-soft-dark">Темная тема</span>
                             <div>
-                                <div class="text-sm font-medium text-soft-dark">Уведомления</div>
-                                <div class="text-xs text-soft-gray">Новые сообщения и объявления</div>
+                                <input type="checkbox" id="theme-toggle" class="toggle-checkbox hidden">
+                                <label for="theme-toggle" class="toggle-label"></label>
                             </div>
-                            <input type="checkbox" id="notifications-toggle" class="toggle-checkbox sr-only" checked>
-                            <label for="notifications-toggle" class="toggle-label"></label>
                         </div>
-                        <div class="p-4 flex items-center justify-between">
-                            <div>
-                                <div class="text-sm font-medium text-soft-dark">Полноэкранный режим</div>
-                                <div class="text-xs text-soft-gray">Развернуть приложение</div>
-                            </div>
-                            <input type="checkbox" id="fullscreen-toggle" class="toggle-checkbox sr-only">
-                            <label for="fullscreen-toggle" class="toggle-label"></label>
-                        </div>
-                        <div class="p-4 flex items-center justify-between opacity-60">
-                            <div>
-                                <div class="text-sm font-medium text-soft-dark">Темный режим</div>
-                                <div class="text-xs text-soft-gray">Синхронизация с Telegram</div>
-                            </div>
-                            <input type="checkbox" id="dark-mode-toggle" class="toggle-checkbox sr-only" disabled>
-                            <label for="dark-mode-toggle" class="toggle-label cursor-not-allowed"></label>
+                        <div class="p-4">
+                            <button id="logout-btn" class="soft-btn w-full bg-soft-danger text-white py-2 px-4 rounded-xl text-sm font-medium">
+                                <i class="fas fa-sign-out-alt mr-2"></i> Выйти
+                            </button>
                         </div>
                     </div>
                 </div>
-
-                <button class="soft-btn w-full bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 py-3 px-4 rounded-xl flex items-center justify-center font-medium">
-                    <i class="fas fa-sign-out-alt mr-2"></i> Выйти
-                </button>
             </div>
         </div>
+
         <div class="bottom-nav">
-            <button class="tab-btn flex flex-col items-center px-4 py-1" data-tab="home-tab">
+            <button class="tab-btn flex flex-col items-center text-soft-primary" data-tab="home-tab">
                 <i class="fas fa-home"></i>
                 <span>Главная</span>
             </button>
-            <button class="tab-btn flex flex-col items-center px-4 py-1 relative" data-tab="new-tab">
+            <button class="tab-btn flex flex-col items-center relative" data-tab="new-tab">
                 <i class="fas fa-bell"></i>
                 <span>Новые</span>
                 <span id="nav-new-badge" class="unread-badge hidden">0</span>
             </button>
-            <button class="tab-btn flex flex-col items-center px-4 py-1" data-tab="user-tab">
+            <button class="tab-btn flex flex-col items-center" data-tab="user-tab">
                 <i class="fas fa-list"></i>
                 <span>Мои</span>
             </button>
-            <button class="tab-btn flex flex-col items-center px-4 py-1" data-tab="profile-tab">
+            <button class="tab-btn flex flex-col items-center" data-tab="profile-tab">
                 <i class="fas fa-user"></i>
                 <span>Профиль</span>
             </button>
         </div>
     </div>
-    <script>
-        if (typeof window.Telegram === 'undefined' || typeof window.Telegram.WebApp === 'undefined') {
-            document.addEventListener('DOMContentLoaded', () => {
-                document.body.innerHTML = `
-                    <div style="padding: 30px; text-align: center; font-family: 'Inter', sans-serif; color: #333; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #f8fafc;">
-                        <h1 style="color: #ef4444; margin-bottom: 15px;">Ошибка Загрузки</h1>
-                        <p style="color: #555; line-height: 1.6;">Это веб-приложение разработано для использования внутри Telegram.</p>
-                        <p style="color: #555; line-height: 1.6;">Пожалуйста, откройте его с помощью соответствующего бота в Telegram.</p>
-                    </div>`;
-            });
-        } else {
-            const tg = window.Telegram.WebApp;
-            tg.ready();
-            tg.expand();
-            tg.requestFullscreen(); // Автоматический полноэкранный режим при запуске
 
-            const setHeaderColor = (colorScheme) => {
-                tg.setHeaderColor(colorScheme === 'dark' ? '#1f2937' : '#6366f1');
+    <!-- Модальное окно для капчи -->
+    <div id="captcha-modal" class="captcha-modal">
+        <div class="captcha-content soft-card shadow-soft-lg">
+            <h3 class="text-lg font-semibold text-soft-dark mb-4">Введите код капчи</h3>
+            <p class="text-soft-gray mb-4 text-sm">Пожалуйста, введите код, чтобы продолжить поиск.</p>
+            <input type="text" id="captcha-input" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm mb-4" placeholder="Код капчи">
+            <div class="flex space-x-3">
+                <button id="captcha-submit" class="soft-btn flex-1 bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-2 px-4 rounded-xl font-medium">
+                    Подтвердить
+                </button>
+                <button id="captcha-cancel" class="soft-btn flex-1 bg-gray-200 dark:bg-gray-600 text-soft-dark py-2 px-4 rounded-xl font-medium">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        let userId = null;
+        let captchaCode = null;
+
+        // Автоматическое открытие на весь экран
+        document.addEventListener('DOMContentLoaded', () => {
+            tg.expand(); // Разворачиваем Mini App на весь экран
+            tg.requestFullscreen(); // Запрашиваем полноэкранный режим
+            tg.ready(); // Сообщаем Telegram, что приложение готово
+
+            userId = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null;
+            if (!userId) {
+                alert('Не удалось определить пользователя. Пожалуйста, перезапустите приложение.');
+                return;
+            }
+
+            // Регистрация пользователя
+            fetch('/api/register_user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userId,
+                    first_name: tg.initDataUnsafe.user.first_name,
+                    last_name: tg.initDataUnsafe.user.last_name,
+                    username: tg.initDataUnsafe.user.username
+                })
+            }).then(response => response.json()).then(data => {
+                if (data.status === 'success') {
+                    loadProfile();
+                    loadPopular();
+                    loadUserListings();
+                    loadNewListings();
+                }
+            }).catch(err => console.error('Ошибка регистрации:', err));
+        });
+
+        // Переключение вкладок
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('text-soft-primary'));
+                const tabId = btn.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+                btn.classList.add('text-soft-primary');
+                if (tabId === 'new-tab') {
+                    document.getElementById('new-badge').classList.add('hidden');
+                    document.getElementById('nav-new-badge').classList.add('hidden');
+                }
+            });
+        });
+
+        // Переключение темы
+        const themeToggle = document.getElementById('theme-toggle');
+        themeToggle.addEventListener('change', () => {
+            document.body.classList.toggle('dark');
+            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        });
+
+        // Загрузка сохраненной темы
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark');
+            themeToggle.checked = true;
+        }
+
+        // Загрузка профиля
+        function loadProfile() {
+            const user = tg.initDataUnsafe.user;
+            document.getElementById('profile-name').textContent = user.first_name || 'Пользователь';
+            document.getElementById('profile-username').textContent = user.username ? `@${user.username}` : '@неизвестно';
+            if (user.photo_url) {
+                const img = document.createElement('img');
+                img.src = user.photo_url;
+                img.className = 'w-full h-full object-cover';
+                const photoDiv = document.getElementById('profile-photo');
+                photoDiv.innerHTML = '';
+                photoDiv.appendChild(img);
+            }
+            fetch(`/api/user_listings?user_id=${userId}`).then(res => res.json()).then(data => {
+                document.getElementById('profile-ad-count').textContent = data.ads.length;
+            });
+        }
+
+        // Поиск
+        document.getElementById('search-btn').addEventListener('click', () => {
+            const minPrice = document.getElementById('min-price').value;
+            const maxPrice = document.getElementById('max-price').value;
+            const rooms = document.getElementById('rooms').value;
+            const city = document.getElementById('city').value;
+
+            if (!city) {
+                alert('Пожалуйста, выберите город.');
+                return;
+            }
+
+            const searchData = {
+                user_id: userId,
+                city: city,
+                min_price: minPrice ? parseInt(minPrice) : null,
+                max_price: maxPrice ? parseInt(maxPrice) : null,
+                rooms: rooms || null,
+                captcha_code: captchaCode
             };
 
-            const MAX_UPLOAD_FILES = 5;
-            let userId = null;
-
-            document.addEventListener('DOMContentLoaded', () => {
-                const user = tg.initDataUnsafe?.user;
-                if (user) {
-                    userId = user.id;
-                    fetch('/api/register_user', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            user_id: user.id,
-                            first_name: user.first_name,
-                            last_name: user.last_name,
-                            username: user.username
-                        })
-                    }).catch(err => console.error('Error registering user:', err));
-
-                    const profileName = document.getElementById('profile-name');
-                    const profileUsername = document.getElementById('profile-username');
-                    const profilePhotoDiv = document.getElementById('profile-photo');
-                    if (profileName) profileName.textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Пользователь';
-                    if (profileUsername) profileUsername.textContent = user.username ? `@${user.username}` : `ID: ${user.id}`;
-                    if (user.photo_url && profilePhotoDiv) {
-                        profilePhotoDiv.innerHTML = `<img src="${user.photo_url}" alt="Фото профиля" class="w-full h-full object-cover rounded-full">`;
-                    }
+            fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(searchData)
+            }).then(res => res.json()).then(data => {
+                if (data.error === 'CAPTCHA_REQUIRED') {
+                    showCaptchaModal();
+                    return;
                 }
-
-                function setViewportHeight() {
-                    const vh = tg.viewportStableHeight;
-                    const safeArea = document.querySelector('.safe-area');
-                    if (safeArea && vh > 0) {
-                        safeArea.style.height = `${vh}px`;
-                        safeArea.style.minHeight = `${vh}px`;
-                    }
+                if (data.error) {
+                    alert(data.error);
+                    return;
                 }
-                setViewportHeight();
-                tg.onEvent('viewportChanged', setViewportHeight);
-
-                function updateSafeArea() {
-                    const safeArea = document.querySelector('.safe-area');
-                    safeArea.style.paddingTop = `var(--tg-safe-area-inset-top, ${tg.safeAreaInset?.top || 0}px)`;
-                    safeArea.style.paddingLeft = `var(--tg-safe-area-inset-left, ${tg.safeAreaInset?.left || 0}px)`;
-                    safeArea.style.paddingRight = `var(--tg-safe-area-inset-right, ${tg.safeAreaInset?.right || 0}px)`;
-                    const bottomNav = document.querySelector('.bottom-nav');
-                    bottomNav.style.paddingBottom = `var(--tg-safe-area-inset-bottom, ${tg.safeAreaInset?.bottom || 0}px)`;
-                    bottomNav.style.height = `calc(60px + var(--tg-safe-area-inset-bottom, ${tg.safeAreaInset?.bottom || 0}px))`;
-                }
-                updateSafeArea();
-                tg.onEvent('safeAreaChanged', updateSafeArea);
-
-                const fullscreenToggle = document.getElementById('fullscreen-toggle');
-                fullscreenToggle.checked = tg.isFullscreen;
-                fullscreenToggle.addEventListener('change', () => {
-                    if (fullscreenToggle.checked) {
-                        tg.requestFullscreen();
-                    } else {
-                        tg.exitFullscreen();
-                    }
-                });
-
-                tg.onEvent('fullscreenChanged', () => {
-                    fullscreenToggle.checked = tg.isFullscreen;
-                    updateSafeArea();
-                });
-                tg.onEvent('fullscreenFailed', () => {
-                    fullscreenToggle.checked = false;
-                    tg.showAlert('Не удалось включить полноэкранный режим.');
-                });
-
-                function hapticFeedback(style = 'light') {
-                    if (tg.HapticFeedback) {
-                        try {
-                            if (['light', 'medium', 'heavy', 'rigid', 'soft'].includes(style)) {
-                                tg.HapticFeedback.impactOccurred(style);
-                            } else if (['success', 'warning', 'error'].includes(style)) {
-                                tg.HapticFeedback.notificationOccurred(style);
-                            }
-                        } catch (e) {
-                            console.warn("Haptic feedback failed:", e);
-                        }
-                    }
-                }
-                document.querySelectorAll('button, .tab-btn, .image-upload, input[type="checkbox"] + label, select').forEach(el => {
-                    el.addEventListener('click', () => hapticFeedback('light'));
-                });
-                document.querySelectorAll('.soft-btn[type="submit"], #search-btn, #add-listing-btn').forEach(el => {
-                    el.addEventListener('click', () => hapticFeedback('medium'));
-                });
-
-                const tabButtons = document.querySelectorAll('.tab-btn');
-                const tabContents = document.querySelectorAll('.tab-content');
-                const navNewBadge = document.getElementById('nav-new-badge');
-                const headerNewBadge = document.getElementById('new-badge');
-                const contentWrapper = document.querySelector('.content-wrapper');
-
-                tabButtons.forEach(button => {
-                    button.addEventListener('click', () => {
-                        const previouslyActiveButton = document.querySelector('.tab-btn.text-soft-primary');
-                        const tabId = button.getAttribute('data-tab');
-                        const targetContent = document.getElementById(tabId);
-
-                        if (previouslyActiveButton === button || !targetContent) return;
-
-                        if (previouslyActiveButton) {
-                            previouslyActiveButton.classList.remove('text-soft-primary');
-                        }
-                        document.querySelector('.tab-content.active')?.classList.remove('active');
-
-                        button.classList.add('text-soft-primary');
-                        targetContent.classList.add('active');
-
-                        if (contentWrapper) contentWrapper.scrollTo({ top: 0, behavior: 'smooth' });
-
-                        if (tabId === 'new-tab' && !navNewBadge.classList.contains('hidden')) {
-                            navNewBadge.classList.add('hidden');
-                            headerNewBadge.classList.add('hidden');
-                            headerNewBadge.textContent = '0';
-                        }
-
-                        hapticFeedback('light');
-
-                        if (tabId === 'home-tab') loadPopular();
-                        if (tabId === 'new-tab') loadNewListings();
-                        if (tabId === 'user-tab') loadUserListings();
-                        if (tabId === 'profile-tab') loadProfileStats();
-                    });
-                });
-
-                function applyTheme() {
-                    const colorScheme = tg.colorScheme || 'light';
-                    document.body.classList.toggle('dark', colorScheme === 'dark');
-                    document.getElementById('dark-mode-toggle').checked = (colorScheme === 'dark');
-                    setHeaderColor(colorScheme);
-                }
-                tg.onEvent('themeChanged', applyTheme);
-                applyTheme();
-
-                function renderApartmentCard(ad) {
-                    const gradient = ad.source === 'User' ? 'from-soft-success to-soft-info' :
-                                    ad.city === 'brest' ? 'from-soft-warning to-soft-danger' :
-                                    'from-soft-primary to-soft-secondary';
-                    const title = ad.source === 'User' ? ad.title : ad.description.split(',')[0];
-                    const roomsText = ad.rooms === 'studio' ? 'Студия' : `${ad.rooms} комн.`;
-                    return `
-                        <div class="apartment-card soft-card shadow-soft">
-                            <div class="h-48 bg-gradient-to-br ${gradient} flex items-center justify-center">
-                                ${ad.image ? `<img src="${ad.image}" class="h-full w-full object-cover">` : `<i class="fas ${ad.rooms === 'studio' ? 'fa-person-booth' : 'fa-building'} text-white text-5xl opacity-70"></i>`}
-                            </div>
-                            <div class="p-4">
-                                <h4 class="font-semibold text-soft-dark">${title}</h4>
-                                <p class="text-soft-primary text-lg font-bold mt-1">$${ad.price} <span class="text-sm font-normal text-soft-gray">/месяц</span></p>
-                                <div class="flex items-center mt-2 text-sm text-soft-gray">
-                                    <i class="fas fa-map-marker-alt mr-2 text-soft-info w-4 text-center"></i>
-                                    <span>${ad.address}</span>
-                                </div>
-                                <div class="mt-2 flex items-center text-sm text-soft-gray">
-                                    <i class="fas fa-ruler-combined mr-2 text-soft-info w-4 text-center"></i>
-                                    <span>${ad.area || '?'} м²</span>
-                                    <i class="fas fa-bed ml-4 mr-2 text-soft-info w-4 text-center"></i>
-                                    <span>${roomsText}</span>
-                                </div>
-                                ${ad.source === 'User' ? `
-                                    <div class="mt-3 flex justify-between items-center">
-                                        <span class="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium">
-                                            <i class="fas fa-check-circle mr-1"></i>Активно
-                                        </span>
-                                        <div class="flex space-x-3">
-                                            <button title="Редактировать" class="text-soft-primary hover:text-soft-secondary text-lg"><i class="fas fa-edit"></i></button>
-                                            <button title="Удалить" class="text-soft-danger hover:text-red-500 text-lg"><i class="fas fa-trash"></i></button>
-                                        </div>
-                                    </div>
-                                ` : `
-                                    <div class="mt-3">
-                                        <a href="${ad.link}" target="_blank" class="text-soft-primary text-sm hover:underline">Подробнее</a>
-                                    </div>
-                                `}
-                            </div>
-                        </div>
-                    `;
-                }
-
-                async function promptCaptcha() {
-                    return new Promise((resolve) => {
-                        tg.showPopup({
-                            title: 'Капча',
-                            message: 'Обнаружена капча на Kufar. Введите код капчи:',
-                            buttons: [
-                                { id: 'captcha_input', type: 'input', placeholder: 'Введите код' },
-                                { id: 'submit', type: 'default', text: 'Отправить' },
-                                { id: 'cancel', type: 'destructive', text: 'Отмена' }
-                            ]
-                        }, (buttonId, inputValue) => {
-                            if (buttonId === 'submit' && inputValue) {
-                                resolve(inputValue);
-                            } else {
-                                resolve(null);
-                            }
-                        });
-                    });
-                }
-
-                const searchBtn = document.getElementById('search-btn');
+                captchaCode = null; // Сбрасываем код капчи после успешного поиска
                 const resultsContainer = document.getElementById('results-container');
-                const searchResultsSection = document.getElementById('search-results');
-                if (searchBtn) {
-                    searchBtn.addEventListener('click', async () => {
-                        const minPrice = document.getElementById('min-price').value;
-                        const maxPrice = document.getElementById('max-price').value;
-                        const rooms = document.getElementById('rooms').value;
-                        const city = document.getElementById('city').value;
-
-                        if (!city) {
-                            tg.showAlert('Пожалуйста, выберите город.');
-                            hapticFeedback('error');
-                            return;
-                        }
-
-                        resultsContainer.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Ищем варианты... <i class="fas fa-spinner fa-spin ml-1"></i></div>';
-                        searchResultsSection.classList.remove('hidden');
-                        hapticFeedback('light');
-
-                        const searchData = {
-                            user_id: userId,
-                            city: city,
-                            min_price: minPrice ? parseInt(minPrice) : null,
-                            max_price: maxPrice ? parseInt(maxPrice) : null,
-                            rooms: rooms || null
-                        };
-
-                        try {
-                            let response = await fetch('/api/search', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(searchData)
-                            });
-                            let data = await response.json();
-
-                            if (data.error === 'CAPTCHA_REQUIRED') {
-                                const captchaCode = await promptCaptcha();
-                                if (!captchaCode) {
-                                    resultsContainer.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Поиск отменен.</div>';
-                                    hapticFeedback('warning');
-                                    return;
-                                }
-
-                                searchData.captcha_code = captchaCode;
-                                response = await fetch('/api/search', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(searchData)
-                                });
-                                data = await response.json();
-                            }
-
-                            if (data.error) throw new Error(data.error);
-
-                            resultsContainer.innerHTML = '';
-                            if (data.ads.length > 0) {
-                                data.ads.forEach(ad => {
-                                    resultsContainer.innerHTML += renderApartmentCard(ad);
-                                });
-                                hapticFeedback('success');
-                            } else {
-                                resultsContainer.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">По вашему запросу ничего не найдено.</div>';
-                                hapticFeedback('warning');
-                            }
-                            searchResultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        } catch (error) {
-                            console.error('Search error:', error);
-                            resultsContainer.innerHTML = '<div class="text-center text-soft-danger p-5 text-sm">Ошибка поиска. Попробуйте позже.</div>';
-                            hapticFeedback('error');
-                        }
+                resultsContainer.innerHTML = '';
+                if (data.ads.length === 0) {
+                    resultsContainer.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Ничего не найдено.</div>';
+                } else {
+                    data.ads.forEach(ad => {
+                        resultsContainer.appendChild(createApartmentCard(ad));
                     });
                 }
+                document.getElementById('search-results').classList.remove('hidden');
+            }).catch(err => {
+                console.error('Ошибка поиска:', err);
+                alert('Произошла ошибка при поиске.');
+            });
+        });
 
-                async function loadPopular() {
-                    const popularContainer = document.getElementById('popular-container');
-                    popularContainer.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Загрузка популярных...</div>';
-                    try {
-                        const response = await fetch('/api/ads');
-                        const data = await response.json();
-                        if (data.error) throw new Error(data.error);
+        // Обработка капчи
+        function showCaptchaModal() {
+            const modal = document.getElementById('captcha-modal');
+            modal.classList.add('active');
+        }
 
-                        popularContainer.innerHTML = '';
-                        data.ads.slice(0, 5).forEach(ad => {
-                            popularContainer.innerHTML += renderApartmentCard(ad);
-                        });
-                    } catch (error) {
-                        console.error('Popular load error:', error);
-                        popularContainer.innerHTML = '<div class="text-center text-soft-danger p-5 text-sm">Ошибка загрузки.</div>';
-                    }
-                }
-                loadPopular();
+        document.getElementById('captcha-submit').addEventListener('click', () => {
+            captchaCode = document.getElementById('captcha-input').value.trim();
+            if (!captchaCode) {
+                alert('Пожалуйста, введите код капчи.');
+                return;
+            }
+            document.getElementById('captcha-modal').classList.remove('active');
+            document.getElementById('captcha-input').value = '';
+            document.getElementById('search-btn').click(); // Повторяем поиск с кодом капчи
+        });
 
-                async function loadNewListings() {
-                    const newListings = document.getElementById('new-listings');
-                    newListings.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Загрузка новых...</div>';
-                    try {
-                        const response = await fetch(`/api/new_listings?user_id=${userId}`);
-                        const data = await response.json();
-                        if (data.error) throw new Error(data.error);
+        document.getElementById('captcha-cancel').addEventListener('click', () => {
+            document.getElementById('captcha-modal').classList.remove('active');
+            document.getElementById('captcha-input').value = '';
+            captchaCode = null;
+        });
 
-                        newListings.innerHTML = '';
-                        if (data.ads.length > 0) {
-                            data.ads.forEach(ad => {
-                                newListings.innerHTML += renderApartmentCard(ad);
-                            });
-                            headerNewBadge.textContent = data.ads.length;
-                            navNewBadge.textContent = data.ads.length;
-                            headerNewBadge.classList.remove('hidden');
-                            navNewBadge.classList.remove('hidden');
-                        } else {
-                            newListings.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Нет новых объявлений.</div>';
-                        }
-                    } catch (error) {
-                        console.error('New listings error:', error);
-                        newListings.innerHTML = '<div class="text-center text-soft-danger p-5 text-sm">Ошибка загрузки.</div>';
-                    }
-                }
-
-                async function loadUserListings() {
-                    const userListings = document.getElementById('user-listings');
-                    userListings.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Загрузка ваших объявлений...</div>';
-                    try {
-                        const response = await fetch(`/api/user_listings?user_id=${userId}`);
-                        const data = await response.json();
-                        if (data.error) throw new Error(data.error);
-
-                        userListings.innerHTML = '';
-                        if (data.ads.length > 0) {
-                            data.ads.forEach(ad => {
-                                userListings.innerHTML += renderApartmentCard(ad);
-                            });
-                        } else {
-                            userListings.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">У вас нет объявлений.</div>';
-                        }
-                    } catch (error) {
-                        console.error('User listings error:', error);
-                        userListings.innerHTML = '<div class="text-center text-soft-danger p-5 text-sm">Ошибка загрузки.</div>';
-                    }
-                }
-
-                async function loadProfileStats() {
-                    try {
-                        const response = await fetch(`/api/user_listings?user_id=${userId}`);
-                        const data = await response.json();
-                        if (data.error) throw new Error(data.error);
-
-                        document.getElementById('profile-ad-count').textContent = data.ads.length;
-                        document.getElementById('profile-fav-count').textContent = '0';
-                        document.getElementById('profile-msg-count').textContent = '0';
-                    } catch (error) {
-                        console.error('Profile stats error:', error);
-                    }
-                }
-
-                const addListingBtn = document.getElementById('add-listing-btn');
-                const addListingFormDiv = document.getElementById('add-listing-form');
-                const userListingsDiv = document.getElementById('user-listings');
-                const cancelBtn = document.getElementById('cancel-btn');
-                const listingForm = document.getElementById('listing-form');
-                const imageUpload = document.getElementById('image-upload');
-                const fileInput = document.getElementById('file-input');
-                const previewContainer = document.getElementById('preview-container');
-                let uploadedFiles = [];
-
-                if (addListingBtn) {
-                    addListingBtn.addEventListener('click', () => {
-                        userListingsDiv.classList.add('hidden');
-                        addListingFormDiv.classList.remove('hidden');
-                        addListingFormDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        hapticFeedback('medium');
-                        tg.MainButton.setParams({
-                            text: 'ОПУБЛИКОВАТЬ',
-                            color: tg.themeParams.button_color || '#6366f1',
-                            text_color: tg.themeParams.button_text_color || '#ffffff',
-                            is_active: true,
-                            is_visible: true
-                        }).onClick(submitListingForm);
+        // Загрузка популярных объявлений
+        function loadPopular() {
+            fetch('/api/ads').then(res => res.json()).then(data => {
+                const container = document.getElementById('popular-container');
+                container.innerHTML = '';
+                if (data.ads.length === 0) {
+                    container.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Нет популярных объявлений.</div>';
+                } else {
+                    data.ads.forEach(ad => {
+                        container.appendChild(createApartmentCard(ad));
                     });
-                }
-
-                if (cancelBtn) {
-                    cancelBtn.addEventListener('click', () => {
-                        addListingFormDiv.classList.add('hidden');
-                        userListingsDiv.classList.remove('hidden');
-                        listingForm.reset();
-                        previewContainer.innerHTML = '';
-                        uploadedFiles = [];
-                        fileInput.value = '';
-                        hapticFeedback('light');
-                        tg.MainButton.hide();
-                    });
-                }
-
-                if (imageUpload) {
-                    imageUpload.addEventListener('click', () => fileInput.click());
-                }
-
-                if (fileInput) {
-                    fileInput.addEventListener('change', (event) => {
-                        const files = event.target.files;
-                        let currentFileCount = uploadedFiles.length;
-
-                        if (files) {
-                            const filesToAdd = Array.from(files).slice(0, MAX_UPLOAD_FILES - currentFileCount);
-
-                            if (filesToAdd.length === 0 && files.length > 0) {
-                                tg.showPopup({ message: `Достигнут лимит в ${MAX_UPLOAD_FILES} фото.` });
-                                hapticFeedback('warning');
-                                return;
-                            }
-
-                            filesToAdd.forEach(file => {
-                                if (!file.type.startsWith('image/')) return;
-
-                                if (file.size > 5 * 1024 * 1024) {
-                                    tg.showPopup({ message: `Файл ${file.name} слишком большой (макс 5MB).` });
-                                    hapticFeedback('warning');
-                                    return;
-                                }
-
-                                uploadedFiles.push(file);
-                                const reader = new FileReader();
-                                reader.onload = (e) => {
-                                    const previewDiv = document.createElement('div');
-                                    previewDiv.className = 'preview-image p-1';
-                                    previewDiv.innerHTML = `
-                                        <img src="${e.target.result}" alt="${file.name}" class="w-16 h-16 object-cover rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
-                                        <button type="button" class="remove-image" data-filename="${file.name}" title="Удалить">×</button>
-                                    `;
-                                    previewContainer.appendChild(previewDiv);
-
-                                    previewDiv.querySelector('.remove-image').addEventListener('click', (removeEvent) => {
-                                        removeEvent.stopPropagation();
-                                        const filenameToRemove = removeEvent.target.getAttribute('data-filename');
-                                        uploadedFiles = uploadedFiles.filter(f => f.name !== filenameToRemove);
-                                        previewDiv.remove();
-                                        hapticFeedback('light');
-                                        updateMainButtonState();
-                                    });
-                                };
-                                reader.readAsDataURL(file);
-                            });
-
-                            fileInput.value = '';
-                            hapticFeedback('soft');
-                            updateMainButtonState();
-                        }
-                    });
-                }
-
-                const submitListingForm = async () => {
-                    if (!listingForm.checkValidity()) {
-                        listingForm.reportValidity();
-                        hapticFeedback('error');
-                        tg.showAlert('Пожалуйста, заполните все обязательные поля (*).');
-                        tg.MainButton.hideProgress();
-                        return;
-                    }
-
-                    hapticFeedback('heavy');
-                    tg.MainButton.showProgress(false);
-                    tg.MainButton.disable();
-
-                    const formData = new FormData(listingForm);
-                    formData.append('user_id', userId);
-                    uploadedFiles.forEach((file, index) => {
-                        formData.append(`photos[]`, file, file.name);
-                    });
-
-                    try {
-                        const response = await fetch('/api/add_listing', {
-                            method: 'POST',
-                            body: formData
-                        });
-                        const result = await response.json();
-                        if (result.error) throw new Error(result.error);
-
-                        tg.showPopup({ message: 'Объявление отправлено на модерацию!' });
-                        hapticFeedback('success');
-                        cancelBtn.click();
-                    } catch (error) {
-                        console.error('Form submission error:', error);
-                        tg.showAlert(`Ошибка публикации: ${error.message || 'Попробуйте позже.'}`);
-                        hapticFeedback('error');
-                    } finally {
-                        tg.MainButton.hideProgress();
-                        tg.MainButton.enable();
-                    }
-                };
-
-                const updateMainButtonState = () => {
-                    const isValid = listingForm.checkValidity();
-                    if (addListingFormDiv && !addListingFormDiv.classList.contains('hidden')) {
-                        if (isValid) {
-                            tg.MainButton.setParams({ is_active: true, text: 'ОПУБЛИКОВАТЬ' });
-                        } else {
-                            tg.MainButton.setParams({ is_active: false, text: 'ЗАПОЛНИТЕ ФОРМУ' });
-                        }
-                    }
-                };
-
-                if (listingForm) {
-                    listingForm.addEventListener('input', updateMainButtonState);
-                    listingForm.querySelectorAll('select').forEach(select => {
-                        select.addEventListener('change', updateMainButtonState);
-                    });
-                }
-
-                const initialTabButton = document.querySelector('.tab-btn[data-tab="home-tab"]');
-                if (initialTabButton) {
-                    initialTabButton.classList.add('text-soft-primary');
                 }
             });
         }
+
+        // Загрузка новых объявлений
+        function loadNewListings() {
+            fetch(`/api/new_listings?user_id=${userId}`).then(res => res.json()).then(data => {
+                const container = document.getElementById('new-listings');
+                container.innerHTML = '';
+                if (data.ads.length === 0) {
+                    container.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Нет новых объявлений.</div>';
+                } else {
+                    data.ads.forEach(ad => {
+                        container.appendChild(createApartmentCard(ad));
+                    });
+                    document.getElementById('new-badge').textContent = data.ads.length;
+                    document.getElementById('nav-new-badge').textContent = data.ads.length;
+                    document.getElementById('new-badge').classList.remove('hidden');
+                    document.getElementById('nav-new-badge').classList.remove('hidden');
+                }
+            });
+        }
+
+        // Загрузка пользовательских объявлений
+        function loadUserListings() {
+            fetch(`/api/user_listings?user_id=${userId}`).then(res => res.json()).then(data => {
+                const container = document.getElementById('user-listings');
+                container.innerHTML = '';
+                if (data.ads.length === 0) {
+                    container.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">У вас нет объявлений.</div>';
+                } else {
+                    data.ads.forEach(ad => {
+                        container.appendChild(createApartmentCard(ad));
+                    });
+                }
+            });
+        }
+
+        // Создание карточки объявления
+        function createApartmentCard(ad) {
+            const card = document.createElement('div');
+            card.className = 'apartment-card soft-card shadow-soft';
+            card.innerHTML = `
+                <div class="relative">
+                    ${ad.image ? `<img src="${ad.image}" alt="${ad.title}" class="w-full h-48 object-cover">` : 
+                    `<div class="w-full h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                        <i class="fas fa-image text-soft-gray text-3xl"></i>
+                    </div>`}
+                    <div class="absolute top-3 left-3 bg-soft-primary text-white text-xs font-semibold px-2 py-1 rounded-lg">
+                        ${ad.source}
+                    </div>
+                </div>
+                <div class="p-4">
+                    <h4 class="text-base font-semibold text-soft-dark truncate">${ad.title}</h4>
+                    <p class="text-sm text-soft-gray mt-1 truncate">${ad.address}</p>
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-lg font-bold text-soft-primary">$${ad.price}/мес</span>
+                        <div class="flex space-x-2 text-sm text-soft-gray">
+                            ${ad.rooms ? `<span><i class="fas fa-bed mr-1"></i>${ad.rooms}</span>` : ''}
+                            ${ad.area ? `<span><i class="fas fa-ruler mr-1"></i>${ad.area} м²</span>` : ''}
+                            ${ad.floor ? `<span><i class="fas fa-building mr-1"></i>${ad.floor}</span>` : ''}
+                        </div>
+                    </div>
+                    <a href="${ad.link}" target="_blank" class="block mt-3">
+                        <button class="soft-btn w-full bg-soft-primary text-white py-2 px-4 rounded-xl text-sm font-medium">
+                            Подробнее
+                        </button>
+                    </a>
+                </div>
+            `;
+            return card;
+        }
+
+        // Добавление объявления
+        document.getElementById('add-listing-btn').addEventListener('click', () => {
+            document.getElementById('add-listing-form').classList.remove('hidden');
+            document.getElementById('user-listings').classList.add('hidden');
+        });
+
+        document.getElementById('cancel-btn').addEventListener('click', () => {
+            document.getElementById('add-listing-form').classList.add('hidden');
+            document.getElementById('user-listings').classList.remove('hidden');
+            document.getElementById('listing-form').reset();
+            document.getElementById('preview-container').innerHTML = '';
+        });
+
+        // Обработка загрузки изображений
+        const fileInput = document.getElementById('file-input');
+        const imageUpload = document.getElementById('image-upload');
+        const previewContainer = document.getElementById('preview-container');
+
+        imageUpload.addEventListener('click', () => fileInput.click());
+        imageUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            imageUpload.classList.add('border-soft-primary');
+        });
+        imageUpload.addEventListener('dragleave', () => {
+            imageUpload.classList.remove('border-soft-primary');
+        });
+        imageUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            imageUpload.classList.remove('border-soft-primary');
+            const files = e.dataTransfer.files;
+            handleFiles(files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            const currentImages = previewContainer.children.length;
+            const newFiles = Array.from(files).slice(0, 5 - currentImages);
+            newFiles.forEach(file => {
+                if (!file.type.startsWith('image/')) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const div = document.createElement('div');
+                    div.className = 'preview-image relative w-20 h-20';
+                    div.innerHTML = `
+                        <img src="${e.target.result}" class="w-full h-full object-cover rounded-lg">
+                        <span class="remove-image">×</span>
+                    `;
+                    div.querySelector('.remove-image').addEventListener('click', () => {
+                        div.remove();
+                    });
+                    previewContainer.appendChild(div);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Отправка формы объявления
+        document.getElementById('listing-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('user_id', userId);
+            formData.append('title', e.target.title.value);
+            formData.append('description', e.target.description.value);
+            formData.append('price', e.target.price.value);
+            formData.append('rooms', e.target.rooms.value);
+            formData.append('area', e.target.area.value);
+            formData.append('city', e.target.city.value);
+            formData.append('address', e.target.address.value);
+
+            const files = fileInput.files;
+            for (let i = 0; i < files.length; i++) {
+                formData.append('photos[]', files[i]);
+            }
+
+            fetch('/api/add_listing', {
+                method: 'POST',
+                body: formData
+            }).then(res => res.json()).then(data => {
+                if (data.status === 'success') {
+                    alert('Объявление отправлено на модерацию!');
+                    e.target.reset();
+                    previewContainer.innerHTML = '';
+                    document.getElementById('add-listing-form').classList.add('hidden');
+                    document.getElementById('user-listings').classList.remove('hidden');
+                    loadUserListings();
+                } else {
+                    alert(data.error || 'Ошибка при добавлении объявления.');
+                }
+            }).catch(err => {
+                console.error('Ошибка добавления объявления:', err);
+                alert('Произошла ошибка при добавлении объявления.');
+            });
+        });
+
+        // Выход
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            tg.close();
+        });
     </script>
 </body>
 </html>
