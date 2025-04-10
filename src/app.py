@@ -23,7 +23,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgresql_6nv7_user
 BASE_URL = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "localhost:10000")
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0"
 REQUEST_TIMEOUT = 10
-PARSE_INTERVAL = 30
+PARSE_INTERVAL = 30  # Интервал парсинга в минутах
+REQUEST_DELAY = 5    # Задержка между запросами в секундах
 KUFAR_LIMIT = 7
 
 # --- Logging Setup ---
@@ -457,6 +458,7 @@ async def fetch_and_store_ads():
         if total_ads:
             store_ads(total_ads)
             logger.info(f"Stored {len(total_ads)} ads for {city}")
+        await asyncio.sleep(REQUEST_DELAY)  # Задержка между запросами для каждого города
 
 # --- Main Execution ---
 async def main():
