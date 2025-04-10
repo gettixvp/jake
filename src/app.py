@@ -115,8 +115,6 @@ def init_db():
     finally:
         if conn: conn.close()
 
-init_db()
-
 # --- Flask Application Setup ---
 app = Flask(__name__, static_folder='.', static_url_path='')
 
@@ -280,7 +278,6 @@ async def search_api():
 
 @app.route('/api/register_user', methods=['POST'])
 async def register_user_api():
-    global bot_application
     data = request.json
     if not data or 'user_id' not in data:
         return jsonify({"error": "Missing user_id"}), 400
@@ -289,26 +286,23 @@ async def register_user_api():
     conn = None
     try:
         # Получаем данные пользователя через Telegram API
-        if bot_application:
-            user_info = await get_user_info(bot_application.bot, user_id)
-            if not user_info:
-                return jsonify({"error": "Failed to fetch user info from Telegram"}), 500
+        user_info = await get_user_info(bot_application.bot, user_id)
+        if not user_info:
+            return jsonify({"error": "Failed to fetch user info from Telegram"}), 500
 
-            conn = psycopg2.connect(DATABASE_URL)
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO users (id, first_name, last_name, username)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (id) DO UPDATE SET
-                        first_name = EXCLUDED.first_name,
-                        last_name = EXCLUDED.last_name,
-                        username = EXCLUDED.username;
-                """, (user_info['id'], user_info['first_name'], user_info['last_name'], user_info['username']))
-                conn.commit()
-            logger.info(f"User {user_id} registered/updated successfully")
-            return jsonify({"status": "success", "username": user_info['username']})
-        else:
-            return jsonify({"error": "Bot not initialized"}), 500
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO users (id, first_name, last_name, username)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    first_name = EXCLUDED.first_name,
+                    last_name = EXCLUDED.last_name,
+                    username = EXCLUDED.username;
+            """, (user_info['id'], user_info['first_name'], user_info['last_name'], user_info['username']))
+            conn.commit()
+        logger.info(f"User {user_id} registered/updated successfully")
+        return jsonify({"status": "success", "username": user_info['username']})
     except Exception as e:
         logger.error(f"Error registering user {user_id}: {e}")
         if conn: conn.rollback()
@@ -318,7 +312,6 @@ async def register_user_api():
 
 @app.route('/api/add_listing', methods=['POST'])
 async def add_listing_api():
-    global bot_application
     conn = None
     try:
         form = request.form
@@ -338,18 +331,15 @@ async def add_listing_api():
             user = cur.fetchone()
             if not user:
                 # Если пользователь не зарегистрирован, регистрируем его
-                if bot_application:
-                    user_info = await get_user_info(bot_application.bot, user_id)
-                    if not user_info:
-                        return jsonify({"error": "Failed to fetch user info from Telegram"}), 500
-                    cur.execute("""
-                        INSERT INTO users (id, first_name, last_name, username)
-                        VALUES (%s, %s, %s, %s)
-                    """, (user_info['id'], user_info['first_name'], user_info['last_name'], user_info['username']))
-                    conn.commit()
-                    user = user_info
-                else:
-                    return jsonify({"error": "Bot not initialized, cannot fetch user info"}), 500
+                user_info = await get_user_info(bot_application.bot, user_id)
+                if not user_info:
+                    return jsonify({"error": "Failed to fetch user info from Telegram"}), 500
+                cur.execute("""
+                    INSERT INTO users (id, first_name, last_name, username)
+                    VALUES (%s, %s, %s, %s)
+                """, (user_info['id'], user_info['first_name'], user_info['last_name'], user_info['username']))
+                conn.commit()
+                user = user_info
 
             # Добавляем объявление в pending_listings
             cur.execute("""
@@ -359,16 +349,16 @@ async def add_listing_api():
             listing_id = cur.fetchone()[0]
             conn.commit()
 
-        if bot_application:
-            username = user['username'] if user['username'] else f"User {user_id}"
-            await bot_application.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"Новое объявление #{listing_id} от @{username}:\n🏠 {form['title']}\n💰 ${price}\n🌆 {CITIES.get(form['city'], form['city'])}",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("✅ Approve", callback_data=f"approve_{listing_id}"),
-                     InlineKeyboardButton("❌ Reject", callback_data=f"reject_{listing_id}")]
-                ])
-            )
+        # Отправляем уведомление администратору
+        username = user['username'] if user['username'] else f"User {user_id}"
+        await bot_application.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"Новое объявление #{listing_id} от @{username}:\n🏠 {form['title']}\n💰 ${price}\n🌆 {CITIES.get(form['city'], form['city'])}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ Approve", callback_data=f"approve_{listing_id}"),
+                 InlineKeyboardButton("❌ Reject", callback_data=f"reject_{listing_id}")]
+            ])
+        )
         return jsonify({"status": "success", "listing_id": listing_id})
     except Exception as e:
         logger.error(f"Error adding listing: {e}")
@@ -446,7 +436,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     conn = None
     try:
-        # Регистрируем пользователя при вызове /start
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor() as cur:
             cur.execute("""
@@ -488,14 +477,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         try:
             conn = psycopg2.connect(DATABASE_URL)
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                # Обновляем статус объявления
                 cur.execute("UPDATE pending_listings SET status = %s WHERE id = %s RETURNING *", (action, listing_id))
                 listing = cur.fetchone()
                 if not listing:
                     await query.edit_message_text(f"Объявление #{listing_id} не найдено.")
                     return
                 if action == "approved":
-                    # При одобрении переносим в таблицу ads
                     link = f"https://{BASE_URL}/listing_{listing_id}"
                     cur.execute("""
                         INSERT INTO ads (link, source, city, price, rooms, area, address, image, title, description, user_id)
@@ -504,7 +491,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                           listing['address'], listing['image_filenames'], listing['title'], listing['description'], listing['user_id']))
                 conn.commit()
                 await query.edit_message_text(f"Объявление #{listing_id} {'одобрено' if action == 'approved' else 'отклонено'}.")
-                # Уведомляем пользователя
                 await context.bot.send_message(
                     chat_id=listing['user_id'],
                     text=f"Ваше объявление '{listing['title']}' было {'одобрено' if action == 'approved' else 'отклонено'}."
@@ -517,14 +503,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             if conn: conn.close()
 
 # --- Telegram Bot Setup ---
-bot_application = None
+bot_application = Application.builder().token(TELEGRAM_TOKEN).build()
 
 async def setup_bot():
-    global bot_application
-    bot_application = Application.builder().token(TELEGRAM_TOKEN).build()
     bot_application.add_handler(CommandHandler("start", start))
     bot_application.add_handler(CallbackQueryHandler(button_handler))
     await bot_application.bot.set_my_commands([BotCommand("start", "Запустить бота")])
+    await bot_application.initialize()  # Инициализируем бот заранее
     logger.info("Telegram bot handlers set up.")
 
 # --- Background Parsing ---
