@@ -234,6 +234,20 @@ def store_ads(ads: List[Dict]) -> int:
     finally:
         if conn: conn.close()
 
+# --- Helper Function to Get User Info ---
+async def get_user_info(bot, user_id: int) -> Dict:
+    try:
+        user = await bot.get_chat(user_id)
+        return {
+            "id": user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "username": user.username
+        }
+    except Exception as e:
+        logger.error(f"Error fetching user info for {user_id}: {e}")
+        return None
+
 # --- Flask API Endpoints ---
 @app.route('/api/search', methods=['POST'])
 async def search_api():
@@ -265,27 +279,38 @@ async def search_api():
     return jsonify({"ads": ads[:10]})
 
 @app.route('/api/register_user', methods=['POST'])
-def register_user_api():
+async def register_user_api():
+    global bot_application
     data = request.json
     if not data or 'user_id' not in data:
         return jsonify({"error": "Missing user_id"}), 400
 
+    user_id = int(data['user_id'])
     conn = None
     try:
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO users (id, first_name, last_name, username)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    first_name = EXCLUDED.first_name,
-                    last_name = EXCLUDED.last_name,
-                    username = EXCLUDED.username;
-            """, (data['user_id'], data.get('first_name'), data.get('last_name'), data.get('username')))
-            conn.commit()
-        return jsonify({"status": "success"})
+        # Получаем данные пользователя через Telegram API
+        if bot_application:
+            user_info = await get_user_info(bot_application.bot, user_id)
+            if not user_info:
+                return jsonify({"error": "Failed to fetch user info from Telegram"}), 500
+
+            conn = psycopg2.connect(DATABASE_URL)
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO users (id, first_name, last_name, username)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        first_name = EXCLUDED.first_name,
+                        last_name = EXCLUDED.last_name,
+                        username = EXCLUDED.username;
+                """, (user_info['id'], user_info['first_name'], user_info['last_name'], user_info['username']))
+                conn.commit()
+            logger.info(f"User {user_id} registered/updated successfully")
+            return jsonify({"status": "success", "username": user_info['username']})
+        else:
+            return jsonify({"error": "Bot not initialized"}), 500
     except Exception as e:
-        logger.error(f"Error registering user: {e}")
+        logger.error(f"Error registering user {user_id}: {e}")
         if conn: conn.rollback()
         return jsonify({"error": "Database Error"}), 500
     finally:
@@ -301,23 +326,44 @@ async def add_listing_api():
         if not all([form.get('user_id'), form.get('title'), form.get('price'), form.get('rooms'), form.get('city')]):
             return jsonify({"error": "Missing required fields"}), 400
 
+        user_id = int(form['user_id'])
         price = int(form['price'])
         area = int(form['area']) if form.get('area') and form['area'].isdigit() else None
         image_filenames = ','.join([f.filename for f in files if f]) if files else None
 
+        # Проверяем, зарегистрирован ли пользователь
         conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor() as cur:
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+            user = cur.fetchone()
+            if not user:
+                # Если пользователь не зарегистрирован, регистрируем его
+                if bot_application:
+                    user_info = await get_user_info(bot_application.bot, user_id)
+                    if not user_info:
+                        return jsonify({"error": "Failed to fetch user info from Telegram"}), 500
+                    cur.execute("""
+                        INSERT INTO users (id, first_name, last_name, username)
+                        VALUES (%s, %s, %s, %s)
+                    """, (user_info['id'], user_info['first_name'], user_info['last_name'], user_info['username']))
+                    conn.commit()
+                    user = user_info
+                else:
+                    return jsonify({"error": "Bot not initialized, cannot fetch user info"}), 500
+
+            # Добавляем объявление в pending_listings
             cur.execute("""
                 INSERT INTO pending_listings (user_id, title, description, price, rooms, area, city, address, image_filenames)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-            """, (form['user_id'], form['title'], form.get('description'), price, form['rooms'], area, form['city'], form.get('address'), image_filenames))
+            """, (user_id, form['title'], form.get('description'), price, form['rooms'], area, form['city'], form.get('address'), image_filenames))
             listing_id = cur.fetchone()[0]
             conn.commit()
 
         if bot_application:
+            username = user['username'] if user['username'] else f"User {user_id}"
             await bot_application.bot.send_message(
                 chat_id=ADMIN_ID,
-                text=f"Новое объявление #{listing_id}:\n🏠 {form['title']}\n💰 ${price}\n🌆 {CITIES.get(form['city'], form['city'])}",
+                text=f"Новое объявление #{listing_id} от @{username}:\n🏠 {form['title']}\n💰 ${price}\n🌆 {CITIES.get(form['city'], form['city'])}",
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("✅ Approve", callback_data=f"approve_{listing_id}"),
                      InlineKeyboardButton("❌ Reject", callback_data=f"reject_{listing_id}")]
@@ -397,6 +443,27 @@ def serve_mini_app():
 
 # --- Telegram Bot Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    conn = None
+    try:
+        # Регистрируем пользователя при вызове /start
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO users (id, first_name, last_name, username)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    first_name = EXCLUDED.first_name,
+                    last_name = EXCLUDED.last_name,
+                    username = EXCLUDED.username;
+            """, (user_id, update.effective_user.first_name, update.effective_user.last_name, update.effective_user.username))
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Error registering user on start: {e}")
+        if conn: conn.rollback()
+    finally:
+        if conn: conn.close()
+
     web_app_url = f"https://{BASE_URL}/mini-app"
     await update.message.reply_text(
         "Добро пожаловать в бот поиска квартир!",
@@ -421,12 +488,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         try:
             conn = psycopg2.connect(DATABASE_URL)
             with conn.cursor(cursor_factory=DictCursor) as cur:
+                # Обновляем статус объявления
                 cur.execute("UPDATE pending_listings SET status = %s WHERE id = %s RETURNING *", (action, listing_id))
                 listing = cur.fetchone()
                 if not listing:
                     await query.edit_message_text(f"Объявление #{listing_id} не найдено.")
                     return
                 if action == "approved":
+                    # При одобрении переносим в таблицу ads
                     link = f"https://{BASE_URL}/listing_{listing_id}"
                     cur.execute("""
                         INSERT INTO ads (link, source, city, price, rooms, area, address, image, title, description, user_id)
@@ -435,6 +504,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                           listing['address'], listing['image_filenames'], listing['title'], listing['description'], listing['user_id']))
                 conn.commit()
                 await query.edit_message_text(f"Объявление #{listing_id} {'одобрено' if action == 'approved' else 'отклонено'}.")
+                # Уведомляем пользователя
                 await context.bot.send_message(
                     chat_id=listing['user_id'],
                     text=f"Ваше объявление '{listing['title']}' было {'одобрено' if action == 'approved' else 'отклонено'}."
@@ -466,7 +536,7 @@ async def fetch_and_store_ads():
         if total_ads:
             store_ads(total_ads)
             logger.info(f"Stored {len(total_ads)} ads for {city}")
-        await asyncio.sleep(REQUEST_DELAY)  # Задержка между запросами для каждого города
+        await asyncio.sleep(REQUEST_DELAY)
 
 # --- Main Execution ---
 async def main():
