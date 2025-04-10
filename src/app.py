@@ -25,7 +25,6 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101
 REQUEST_TIMEOUT = 10
 PARSE_INTERVAL = 30
 KUFAR_LIMIT = 7
-ONLINER_LIMIT = 7
 
 # --- Logging Setup ---
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -39,15 +38,6 @@ CITIES = {
     "gomel": "🌆 Гомель",
     "vitebsk": "🏙 Витебск",
     "mogilev": "🏞️ Могилев",
-}
-
-ONLINER_CITY_URLS = {
-    "minsk": "https://r.onliner.by/ak/",
-    "brest": "https://r.onliner.by/ak/",
-    "vitebsk": "https://r.onliner.by/ak/",
-    "gomel": "https://r.onliner.by/ak/",
-    "grodno": "https://r.onliner.by/ak/",
-    "mogilev": "https://r.onliner.by/ak/",
 }
 
 # --- Database Initialization ---
@@ -73,7 +63,7 @@ def init_db():
             cur.execute("""
                 CREATE TABLE ads (
                     link TEXT PRIMARY KEY,
-                    source TEXT NOT NULL CHECK (source IN ('Kufar', 'Onliner', 'User')),
+                    source TEXT NOT NULL CHECK (source IN ('Kufar', 'User')),
                     city TEXT,
                     price INTEGER CHECK (price >= 0),
                     rooms TEXT,
@@ -202,107 +192,6 @@ class KufarParser:
         rooms_valid = target_rooms is None or rooms == target_rooms
         return price_valid and rooms_valid
 
-# --- Onliner Parser (Async) ---
-class OnlinerParser:
-    @staticmethod
-    async def fetch_ads(city: str, min_price: Optional[int] = None, max_price: Optional[int] = None, rooms: Optional[str] = None) -> List[Dict]:
-        headers = {"User-Agent": USER_AGENT}
-        base_url = ONLINER_CITY_URLS.get(city)
-        if not base_url:
-            logger.error(f"Unknown city for Onliner: {city}")
-            return []
-
-        query_params = {"currency": "usd"}
-        if rooms and rooms != "studio":
-            query_params["rent_type[]"] = f"{rooms}_room{'s' if int(rooms) > 1 else ''}"
-        elif rooms == "studio":
-            query_params["rent_type[]"] = "1_room"
-            query_params["only_owner"] = "true"  # Примерный фильтр для студий
-        if min_price and max_price:
-            query_params["price[min]"] = min_price
-            query_params["price[max]"] = max_price
-        query_params["location[0]"] = city
-
-        url = f"{base_url}?{urllib.parse.urlencode(query_params)}"
-        logger.info(f"Fetching Onliner ads from: {url}")
-
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)) as response:
-                    response.raise_for_status()
-                    soup = BeautifulSoup(await response.text(), "html.parser")
-                    ads = []
-                    for ad in soup.select("a[href*='/ak/apartments/']")[:ONLINER_LIMIT]:
-                        try:
-                            link = ad.get("href", "")
-                            if not link.startswith("https://r.onliner.by/ak/apartments/"):
-                                continue
-                            price = OnlinerParser._parse_price(ad)
-                            room_count = OnlinerParser._parse_rooms(ad)
-                            address = OnlinerParser._parse_address(ad)
-                            image = OnlinerParser._parse_image(ad)
-                            description = OnlinerParser._parse_description(ad)
-
-                            if OnlinerParser._check_filters(price, room_count, min_price, max_price, rooms):
-                                ads.append({
-                                    "link": link,
-                                    "source": "Onliner",
-                                    "city": city,
-                                    "price": price,
-                                    "rooms": room_count,
-                                    "address": address,
-                                    "image": image,
-                                    "title": description.split(',')[0] if ',' in description else description,
-                                    "description": description,
-                                    "area": None,
-                                    "floor": None,
-                                    "user_id": None
-                                })
-                        except Exception as e:
-                            logger.error(f"Error parsing Onliner ad: {e}")
-                    return ads
-            except Exception as e:
-                logger.error(f"Error fetching Onliner for {city}: {e}")
-                return []
-
-    @staticmethod
-    def _parse_price(ad) -> Optional[int]:
-        price_element = ad.select_one(".classified__price-value span[data-bind*='formatPrice']")
-        return int(re.sub(r"[^\d]", "", price_element.text)) if price_element else None
-
-    @staticmethod
-    def _parse_rooms(ad) -> Optional[str]:
-        rooms_element = ad.select_one(".classified__caption-item.classified__caption-item_type")
-        if rooms_element:
-            if "студия" in rooms_element.text.lower():
-                return "studio"
-            match = re.search(r"(\d+)к", rooms_element.text)
-            return match.group(1) if match else None
-        return None
-
-    @staticmethod
-    def _parse_address(ad) -> str:
-        address_element = ad.select_one(".classified__caption-item.classified__caption-item_adress")
-        return address_element.text.strip() if address_element else "Адрес не указан"
-
-    @staticmethod
-    def _parse_image(ad) -> Optional[str]:
-        image_element = ad.select_one(".classified__figure img")
-        return image_element.get("src") if image_element else None
-
-    @staticmethod
-    def _parse_description(ad) -> str:
-        desc_element = ad.select_one(".classified__caption-item.classified__caption-item_type")
-        return desc_element.text.strip() if desc_element else "Описание не указано"
-
-    @staticmethod
-    def _check_filters(price: Optional[int], rooms: Optional[str], min_price: Optional[int], max_price: Optional[int], target_rooms: Optional[str]) -> bool:
-        if price is None:
-            return False
-        price_valid = (min_price is None or price >= min_price) and (max_price is None or price <= max_price)
-        rooms_valid = target_rooms is None or rooms == target_rooms
-        return price_valid and rooms_valid
-
 # --- Database Operations ---
 def store_ads(ads: List[Dict]) -> int:
     if not ads: return 0
@@ -340,22 +229,29 @@ def store_ads(ads: List[Dict]) -> int:
 async def search_api():
     data = request.json
     if not data or 'user_id' not in data or 'city' not in data:
+        logger.error("Missing user_id or city in request")
         return jsonify({"error": "Missing user_id or city"}), 400
 
-    kufar_ads = await KufarParser.fetch_ads(
-        data['city'],
-        data.get('min_price'),
-        data.get('max_price'),
-        data.get('rooms')
-    )
-    onliner_ads = await OnlinerParser.fetch_ads(
-        data['city'],
-        data.get('min_price'),
-        data.get('max_price'),
-        data.get('rooms')
-    )
-    ads = kufar_ads + onliner_ads
-    store_ads(ads)
+    try:
+        kufar_ads = await KufarParser.fetch_ads(
+            data['city'],
+            data.get('min_price'),
+            data.get('max_price'),
+            data.get('rooms')
+        )
+        logger.info(f"Fetched {len(kufar_ads)} Kufar ads")
+    except Exception as e:
+        logger.error(f"Error fetching Kufar ads: {e}")
+        return jsonify({"error": "Failed to fetch Kufar ads"}), 500
+
+    ads = kufar_ads
+    try:
+        store_ads(ads)
+        logger.info(f"Stored {len(ads)} ads")
+    except Exception as e:
+        logger.error(f"Error storing ads: {e}")
+        return jsonify({"error": "Failed to store ads"}), 500
+
     return jsonify({"ads": ads[:10]})
 
 @app.route('/api/register_user', methods=['POST'])
@@ -449,8 +345,8 @@ def ads_api():
     conn = None
     try:
         conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("SELECT * FROM ads WHERE source IN ('Kufar', 'Onliner') ORDER BY created_at DESC LIMIT 10")
+        with conn.cursor(cursor_factory=Dict wCursor) as cur:
+            cur.execute("SELECT * FROM ads WHERE source = 'Kufar' ORDER BY created_at DESC LIMIT 10")
             ads = [dict(ad) for ad in cur.fetchall()]
         return jsonify({"ads": ads})
     except Exception as e:
@@ -470,7 +366,7 @@ def new_listings_api():
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
             cur.execute("""
-                SELECT * FROM ads WHERE source IN ('Kufar', 'Onliner') AND created_at > NOW() - INTERVAL '24 hours'
+                SELECT * FROM ads WHERE source = 'Kufar' AND created_at > NOW() - INTERVAL '24 hours'
                 ORDER BY created_at DESC LIMIT 10
             """)
             ads = [dict(ad) for ad in cur.fetchall()]
@@ -557,8 +453,7 @@ async def fetch_and_store_ads():
     for city in CITIES.keys():
         logger.info(f"Starting parsing for city: {city}")
         kufar_ads = await KufarParser.fetch_ads(city)
-        onliner_ads = await OnlinerParser.fetch_ads(city)
-        total_ads = kufar_ads + onliner_ads
+        total_ads = kufar_ads
         if total_ads:
             store_ads(total_ads)
             logger.info(f"Stored {len(total_ads)} ads for {city}")
