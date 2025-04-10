@@ -1,44 +1,38 @@
 import logging
 import asyncio
 import re
+import urllib.parse
 import os
-import random
-import time
 from typing import List, Dict, Optional
 from flask import Flask, request, jsonify, send_from_directory
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.error import Forbidden, TimedOut
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
+import aiohttp
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
+import time
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import hypercorn.asyncio
 from hypercorn.config import Config
 import psycopg2
 from psycopg2.extras import DictCursor
-import datetime
 
 # --- Configuration ---
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-ADMIN_ID = int(os.environ.get("ADMIN_ID"))
-DATABASE_URL = os.environ.get("DATABASE_URL")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7846698102:AAFR2bhmjAkPiV-PjtnFIu_oRnzxYPP1xVo")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://neondb_owner:npg_MJr6nebWzp3C@ep-fragrant-math-a2ladk0z-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require")
 BASE_URL = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "localhost:10000")
-
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
-]
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0"
+REQUEST_TIMEOUT = 10
+PARSE_INTERVAL = 30
+KUFAR_LIMIT = 7
+ONLINER_LIMIT = 7
 
 # --- Logging Setup ---
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
-    handlers=[logging.StreamHandler()]
-)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Constants ---
@@ -51,30 +45,26 @@ CITIES = {
     "mogilev": "🏞️ Могилев",
 }
 
+ONLINER_CITY_URLS = {
+    "minsk": "https://r.onliner.by/ak/#bounds[lb][lat]=53.820922446131&bounds[lb][long]=27.344970703125&bounds[rt][lat]=53.97547425743&bounds[rt][long]=27.77961730957",
+    "brest": "https://r.onliner.by/ak/#bounds[lb][lat]=51.941725203142&bounds[lb][long]=23.492889404297&bounds[rt][lat]=52.234528294214&bounds[rt][long]=23.927536010742",
+    "vitebsk": "https://r.onliner.by/ak/#bounds[lb][lat]=55.085834940707&bounds[lb][long]=29.979629516602&bounds[rt][lat]=55.357648391381&bounds[rt][long]=30.414276123047",
+    "gomel": "https://r.onliner.by/ak/#bounds[lb][lat]=52.302600726968&bounds[lb][long]=30.732192993164&bounds[rt][lat]=52.593037841157&bounds[rt][long]=31.166839599609",
+    "grodno": "https://r.onliner.by/ak/#bounds[lb][lat]=53.538267122397&bounds[lb][long]=23.629531860352&bounds[rt][lat]=53.820517109806&bounds[rt][long]=24.064178466797",
+    "mogilev": "https://r.onliner.by/ak/#bounds[lb][lat]=53.74261986683&bounds[lb][long]=30.132064819336&bounds[rt][lat]=54.023503252809&bounds[rt][long]=30.566711425781",
+}
+
 # --- Database Initialization ---
 def init_db():
     conn = None
     try:
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor() as cur:
-            cur.execute("DROP TABLE IF EXISTS pending_listings CASCADE;")
             cur.execute("DROP TABLE IF EXISTS ads CASCADE;")
-            cur.execute("DROP TABLE IF EXISTS users CASCADE;")
-
-            cur.execute("""
-                CREATE TABLE users (
-                    id BIGINT PRIMARY KEY,
-                    first_name TEXT,
-                    last_name TEXT,
-                    username TEXT UNIQUE,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
-                );
-            """)
-
             cur.execute("""
                 CREATE TABLE ads (
                     link TEXT PRIMARY KEY,
-                    source TEXT NOT NULL CHECK (source IN ('Kufar', 'User')),
+                    source TEXT NOT NULL CHECK (source IN ('Kufar', 'Onliner')),
                     city TEXT,
                     price INTEGER CHECK (price >= 0),
                     rooms TEXT,
@@ -84,31 +74,12 @@ def init_db():
                     image TEXT,
                     title TEXT,
                     description TEXT,
-                    user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
                     last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
                 );
             """)
             cur.execute("CREATE INDEX ads_city_idx ON ads (city);")
             cur.execute("CREATE INDEX ads_price_idx ON ads (price);")
-            cur.execute("CREATE INDEX ads_rooms_idx ON ads (rooms);")
-
-            cur.execute("""
-                CREATE TABLE pending_listings (
-                    id SERIAL PRIMARY KEY,
-                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    title TEXT NOT NULL,
-                    description TEXT,
-                    price INTEGER NOT NULL CHECK (price >= 0),
-                    rooms TEXT NOT NULL,
-                    area INTEGER CHECK (area > 0),
-                    city TEXT NOT NULL,
-                    address TEXT,
-                    image_filenames TEXT,
-                    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                    status TEXT DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'approved', 'rejected'))
-                );
-            """)
             conn.commit()
             logger.info("Database initialized successfully.")
     except Exception as e:
@@ -117,88 +88,64 @@ def init_db():
     finally:
         if conn: conn.close()
 
+init_db()
+
 # --- Flask Application Setup ---
 app = Flask(__name__, static_folder='.', static_url_path='')
 
-# --- Global variable for Telegram application ---
-bot_application = None
-
-# --- Kufar Parser with Selenium ---
+# --- Kufar Parser ---
 class KufarParser:
     @staticmethod
-    def fetch_ads(city: str, captcha_code: Optional[str] = None) -> tuple[List[Dict], bool]:
-        base_url = f"https://www.kufar.by/l/r~{city}/snyat/kvartiru-dolgosrochno?cur=USD"
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
+    async def fetch_ads(city: str, min_price: Optional[int] = None, max_price: Optional[int] = None, rooms: Optional[str] = None) -> List[Dict]:
+        headers = {"User-Agent": USER_AGENT}
+        url = f"https://www.kufar.by/l/r~{city}/snyat/kvartiru-dolgosrochno?cur=USD"
+        if rooms and rooms != "studio":
+            url += f"&r={rooms}"
+        if min_price and max_price:
+            url += f"&prc=r%3A{min_price}%2C{max_price}"
+        logger.info(f"Fetching Kufar ads from: {url}")
 
-        driver = None
-        try:
-            driver = webdriver.Chrome(options=chrome_options)
-            driver.get(base_url)
-            WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "article[data-name='listing-item']"))
-            )
-            time.sleep(random.uniform(1, 3))
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)) as response:
+                    response.raise_for_status()
+                    soup = BeautifulSoup(await response.text(), "html.parser")
+                    ads = []
+                    for item in soup.select("article[data-name='listing-item']")[:KUFAR_LIMIT]:
+                        try:
+                            link_tag = item.select_one("a[href*='/item/']")
+                            if not link_tag: continue
+                            full_link = link_tag['href']
+                            price_tag = item.select_one("span[data-name='price-usd']")
+                            price = int(re.sub(r'\D', '', price_tag.text)) if price_tag else None
+                            desc_tag = item.select_one("h3[data-name='title']")
+                            description = desc_tag.text.strip() if desc_tag else "Нет описания"
+                            address_tag = item.select_one("div[data-name='address']")
+                            address = address_tag.text.strip() if address_tag else "Адрес не указан"
+                            img_tag = item.select_one("img[data-name='image']")
+                            image = (img_tag.get('src') or img_tag.get('data-src')) if img_tag else None
+                            params = KufarParser.parse_parameters(item.select_one("div[data-name='parameters']").text if item.select_one("div[data-name='parameters']") else "")
 
-            if "captcha" in driver.page_source.lower() and not captcha_code:
-                return [], True
-
-            if captcha_code:
-                try:
-                    captcha_input = WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.ID, "captcha_input"))
-                    )
-                    captcha_input.send_keys(captcha_code)
-                    driver.find_element(By.XPATH, "//button[@type='submit']").click()
-                    time.sleep(2)
-                    WebDriverWait(driver, 15).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "article[data-name='listing-item']"))
-                    )
-                except Exception as e:
-                    logger.error(f"Error entering CAPTCHA: {e}")
-                    return [], False
-
-            soup = BeautifulSoup(driver.page_source, 'html.parser')
-            ads = []
-            for item in soup.select("article[data-name='listing-item']"):
-                try:
-                    link_tag = item.select_one("a[href*='/item/']")
-                    if not link_tag: continue
-                    full_link = link_tag['href']
-                    price_tag = item.select_one("span[data-name='price-usd']")
-                    price = int(re.sub(r'\D', '', price_tag.text)) if price_tag else None
-                    desc_tag = item.select_one("h3[data-name='title']")
-                    description = desc_tag.text.strip() if desc_tag else "Нет описания"
-                    address_tag = item.select_one("div[data-name='address']")
-                    address = address_tag.text.strip() if address_tag else "Адрес не указан"
-                    img_tag = item.select_one("img[data-name='image']")
-                    image = (img_tag.get('src') or img_tag.get('data-src')) if img_tag else None
-                    params = KufarParser.parse_parameters(item.select_one("div[data-name='parameters']").text if item.select_one("div[data-name='parameters']") else "")
-
-                    ads.append({
-                        'link': full_link,
-                        'source': 'Kufar',
-                        'city': city,
-                        'price': price,
-                        'title': description.split(',')[0] if ',' in description else description,
-                        'description': description,
-                        'address': address,
-                        'image': image,
-                        'user_id': None,
-                        **params
-                    })
-                except Exception as e:
-                    logger.error(f"Error parsing ad: {e}")
-                    continue
-            return ads[:10], False
-        except Exception as e:
-            logger.error(f"Error fetching Kufar for {city}: {e}")
-            return [], False
-        finally:
-            if driver: driver.quit()
+                            if KufarParser._check_filters(price, params['rooms'], min_price, max_price, rooms):
+                                ads.append({
+                                    'link': full_link,
+                                    'source': 'Kufar',
+                                    'city': city,
+                                    'price': price,
+                                    'title': description.split(',')[0] if ',' in description else description,
+                                    'description': description,
+                                    'address': address,
+                                    'image': image,
+                                    'rooms': params['rooms'],
+                                    'area': params['area'],
+                                    'floor': params['floor']
+                                })
+                        except Exception as e:
+                            logger.error(f"Error parsing Kufar ad: {e}")
+                    return ads
+            except Exception as e:
+                logger.error(f"Error fetching Kufar for {city}: {e}")
+                return []
 
     @staticmethod
     def parse_parameters(param_text: str) -> dict:
@@ -219,6 +166,119 @@ class KufarParser:
             params['floor'] = f"{floor_match.group(1)}/{floor_match.group(2)}"
         return params
 
+    @staticmethod
+    def _check_filters(price: Optional[int], rooms: Optional[str], min_price: Optional[int], max_price: Optional[int], target_rooms: Optional[str]) -> bool:
+        if price is None:
+            return False
+        price_valid = (min_price is None or price >= min_price) and (max_price is None or price <= max_price)
+        rooms_valid = target_rooms is None or rooms == target_rooms
+        return price_valid and rooms_valid
+
+# --- Onliner Parser ---
+class OnlinerParser:
+    @staticmethod
+    def fetch_ads(city: str, min_price: Optional[int] = None, max_price: Optional[int] = None, rooms: Optional[str] = None) -> List[Dict]:
+        base_url = ONLINER_CITY_URLS.get(city)
+        if not base_url:
+            logger.error(f"Unknown city for Onliner: {city}")
+            return []
+
+        query_params = {"currency": "usd"}
+        if rooms and rooms != "studio":
+            query_params["rent_type[]"] = f"{rooms}_room{'s' if int(rooms) > 1 else ''}"
+        elif rooms == "studio":
+            query_params["rent_type[]"] = "1_room"
+            query_params["only_owner"] = "true"  # Фильтр для студий
+        if min_price and max_price:
+            query_params["price[min]"] = min_price
+            query_params["price[max]"] = max_price
+        
+        url = base_url if not query_params else f"https://r.onliner.by/ak/?{urllib.parse.urlencode(query_params)}#{base_url.split('#')[1]}"
+        logger.info(f"Fetching Onliner ads from: {url}")
+
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument(f"user-agent={USER_AGENT}")
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+
+        try:
+            driver.get(url)
+            time.sleep(5)
+            soup = BeautifulSoup(driver.page_source, "html.parser")
+            ads = soup.select("a[href*='/ak/apartments/']")[:ONLINER_LIMIT]
+            results = []
+            for ad in ads:
+                try:
+                    link = ad.get("href", "")
+                    if not link.startswith("https://r.onliner.by/ak/apartments/"):
+                        continue
+                    price = OnlinerParser._parse_price(ad)
+                    room_count = OnlinerParser._parse_rooms(ad)
+                    address = OnlinerParser._parse_address(ad)
+                    image = OnlinerParser._parse_image(ad)
+                    description = OnlinerParser._parse_description(ad)
+
+                    if OnlinerParser._check_filters(price, room_count, min_price, max_price, rooms):
+                        results.append({
+                            "link": link,
+                            "source": "Onliner",
+                            "city": city,
+                            "price": price,
+                            "rooms": room_count,
+                            "address": address,
+                            "image": image,
+                            "title": description.split(',')[0] if ',' in description else description,
+                            "description": description,
+                            "area": None,
+                            "floor": None
+                        })
+                except Exception as e:
+                    logger.error(f"Error parsing Onliner ad: {e}")
+            return results
+        except Exception as e:
+            logger.error(f"Error fetching Onliner for {city}: {e}")
+            return []
+        finally:
+            driver.quit()
+
+    @staticmethod
+    def _parse_price(ad) -> Optional[int]:
+        price_element = ad.select_one(".classified__price-value span[data-bind*='formatPrice']")
+        return int(re.sub(r"[^\d]", "", price_element.text)) if price_element else None
+
+    @staticmethod
+    def _parse_rooms(ad) -> Optional[str]:
+        rooms_element = ad.select_one(".classified__caption-item.classified__caption-item_type")
+        if rooms_element:
+            if "студия" in rooms_element.text.lower():
+                return "studio"
+            match = re.search(r"(\d+)к", rooms_element.text)
+            return match.group(1) if match else None
+        return None
+
+    @staticmethod
+    def _parse_address(ad) -> str:
+        address_element = ad.select_one(".classified__caption-item.classified__caption-item_adress")
+        return address_element.text.strip() if address_element else "Адрес не указан"
+
+    @staticmethod
+    def _parse_image(ad) -> Optional[str]:
+        image_element = ad.select_one(".classified__figure img")
+        return image_element.get("src") if image_element else None
+
+    @staticmethod
+    def _parse_description(ad) -> str:
+        desc_element = ad.select_one(".classified__caption-item.classified__caption-item_type")
+        return desc_element.text.strip() if desc_element else "Описание не указано"
+
+    @staticmethod
+    def _check_filters(price: Optional[int], rooms: Optional[str], min_price: Optional[int], max_price: Optional[int], target_rooms: Optional[str]) -> bool:
+        if price is None:
+            return False
+        price_valid = (min_price is None or price >= min_price) and (max_price is None or price <= max_price)
+        rooms_valid = target_rooms is None or rooms == target_rooms
+        return price_valid and rooms_valid
+
 # --- Database Operations ---
 def store_ads(ads: List[Dict]) -> int:
     if not ads: return 0
@@ -229,8 +289,8 @@ def store_ads(ads: List[Dict]) -> int:
         with conn.cursor() as cur:
             for ad in ads:
                 cur.execute("""
-                    INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, title, description, user_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, title, description)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (link) DO UPDATE SET
                         last_seen = CURRENT_TIMESTAMP,
                         price = EXCLUDED.price,
@@ -239,7 +299,7 @@ def store_ads(ads: List[Dict]) -> int:
                 """, (
                     ad.get("link"), ad.get("source"), ad.get("city"), ad.get("price"),
                     ad.get("rooms"), ad.get("area"), ad.get("floor"), ad.get("address"),
-                    ad.get("image"), ad.get("title"), ad.get("description"), ad.get("user_id")
+                    ad.get("image"), ad.get("title"), ad.get("description")
                 ))
                 if cur.fetchone()[0] == 0: added_count += 1
             conn.commit()
@@ -253,111 +313,27 @@ def store_ads(ads: List[Dict]) -> int:
 
 # --- Flask API Endpoints ---
 @app.route('/api/search', methods=['POST'])
-def search_api():
+async def search_api():
     data = request.json
     if not data or 'user_id' not in data or 'city' not in data:
         return jsonify({"error": "Missing user_id or city"}), 400
 
-    ads, captcha_required = KufarParser.fetch_ads(data['city'], data.get('captcha_code'))
-    if captcha_required:
-        return jsonify({"error": "CAPTCHA_REQUIRED"}), 403
-    if not ads:
-        return jsonify({"ads": []}), 200
-
-    filtered_ads = [
-        ad for ad in ads
-        if (data.get('min_price') is None or ad['price'] >= data['min_price']) and
-           (data.get('max_price') is None or ad['price'] <= data['max_price']) and
-           (data.get('rooms') is None or ad['rooms'] == data['rooms'])
-    ]
-    store_ads(filtered_ads)
-    return jsonify({"ads": filtered_ads[:10]})
-
-@app.route('/api/register_user', methods=['POST'])
-def register_user_api():
-    data = request.json
-    if not data or 'user_id' not in data:
-        return jsonify({"error": "Missing user_id"}), 400
-
-    conn = None
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO users (id, first_name, last_name, username)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    first_name = EXCLUDED.first_name,
-                    last_name = EXCLUDED.last_name,
-                    username = EXCLUDED.username;
-            """, (data['user_id'], data.get('first_name'), data.get('last_name'), data.get('username')))
-            conn.commit()
-        return jsonify({"status": "success"})
-    except Exception as e:
-        logger.error(f"Error registering user: {e}")
-        if conn: conn.rollback()
-        return jsonify({"error": "Database Error"}), 500
-    finally:
-        if conn: conn.close()
-
-@app.route('/api/add_listing', methods=['POST'])
-async def add_listing_api():
-    global bot_application
-    conn = None
-    try:
-        form = request.form
-        files = request.files.getlist('photos[]')
-        if not all([form.get('user_id'), form.get('title'), form.get('price'), form.get('rooms'), form.get('city')]):
-            return jsonify({"error": "Missing required fields"}), 400
-
-        price = int(form['price'])
-        area = int(form['area']) if form.get('area') and form['area'].isdigit() else None
-        image_filenames = ','.join([f.filename for f in files if f]) if files else None
-
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO pending_listings (user_id, title, description, price, rooms, area, city, address, image_filenames)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-            """, (form['user_id'], form['title'], form.get('description'), price, form['rooms'], area, form['city'], form.get('address'), image_filenames))
-            listing_id = cur.fetchone()[0]
-            conn.commit()
-
-        if bot_application:
-            await bot_application.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"Новое объявление #{listing_id}:\n🏠 {form['title']}\n💰 ${price}\n🌆 {CITIES.get(form['city'], form['city'])}",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("✅ Approve", callback_data=f"approve_{listing_id}"),
-                     InlineKeyboardButton("❌ Reject", callback_data=f"reject_{listing_id}")]
-                ])
-            )
-        return jsonify({"status": "success", "listing_id": listing_id})
-    except Exception as e:
-        logger.error(f"Error adding listing: {e}")
-        if conn: conn.rollback()
-        return jsonify({"error": "Internal Server Error"}), 500
-    finally:
-        if conn: conn.close()
-
-@app.route('/api/user_listings', methods=['GET'])
-def user_listings_api():
-    user_id = request.args.get('user_id')
-    if not user_id:
-        return jsonify({"error": "Missing user_id"}), 400
-
-    conn = None
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("SELECT * FROM ads WHERE user_id = %s AND source = 'User' ORDER BY created_at DESC", (user_id,))
-            ads = [dict(ad) for ad in cur.fetchall()]
-        return jsonify({"ads": ads})
-    except Exception as e:
-        logger.error(f"Error fetching user listings: {e}")
-        return jsonify({"error": "Database Error"}), 500
-    finally:
-        if conn: conn.close()
+    kufar_ads = await KufarParser.fetch_ads(
+        data['city'],
+        data.get('min_price'),
+        data.get('max_price'),
+        data.get('rooms')
+    )
+    onliner_ads = await asyncio.to_thread(
+        OnlinerParser.fetch_ads,
+        data['city'],
+        data.get('min_price'),
+        data.get('max_price'),
+        data.get('rooms')
+    )
+    ads = kufar_ads + onliner_ads
+    store_ads(ads)
+    return jsonify({"ads": ads[:10]})
 
 @app.route('/api/ads', methods=['GET'])
 def ads_api():
@@ -365,7 +341,7 @@ def ads_api():
     try:
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("SELECT * FROM ads WHERE source = 'Kufar' ORDER BY created_at DESC LIMIT 10")
+            cur.execute("SELECT * FROM ads ORDER BY created_at DESC LIMIT 10")
             ads = [dict(ad) for ad in cur.fetchall()]
         return jsonify({"ads": ads})
     except Exception as e:
@@ -374,29 +350,6 @@ def ads_api():
     finally:
         if conn: conn.close()
 
-@app.route('/api/new_listings', methods=['GET'])
-def new_listings_api():
-    user_id = request.args.get('user_id')
-    if not user_id:
-        return jsonify({"error": "Missing user_id"}), 400
-
-    conn = None
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("""
-                SELECT * FROM ads WHERE source = 'Kufar' AND created_at > NOW() - INTERVAL '24 hours'
-                ORDER BY created_at DESC LIMIT 10
-            """)
-            ads = [dict(ad) for ad in cur.fetchall()]
-        return jsonify({"ads": ads})
-    except Exception as e:
-        logger.error(f"Error fetching new listings: {e}")
-        return jsonify({"error": "Database Error"}), 500
-    finally:
-        if conn: conn.close()
-
-# Исправленные маршруты для Render
 @app.route('/')
 @app.route('/mini_app.html')
 def serve_mini_app():
@@ -412,60 +365,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         ])
     )
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    if data.startswith("approve_") or data.startswith("reject_"):
-        if update.effective_user.id != ADMIN_ID:
-            await query.edit_message_text("У вас нет прав для модерации.")
-            return
-
-        listing_id = int(data.split("_")[1])
-        action = "approved" if data.startswith("approve_") else "rejected"
-        conn = None
-        try:
-            conn = psycopg2.connect(DATABASE_URL)
-            with conn.cursor(cursor_factory=DictCursor) as cur:
-                cur.execute("UPDATE pending_listings SET status = %s WHERE id = %s RETURNING *", (action, listing_id))
-                listing = cur.fetchone()
-                if not listing:
-                    await query.edit_message_text(f"Объявление #{listing_id} не найдено.")
-                    return
-                if action == "approved":
-                    link = f"https://{BASE_URL}/listing_{listing_id}"
-                    cur.execute("""
-                        INSERT INTO ads (link, source, city, price, rooms, area, address, image, title, description, user_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (link, 'User', listing['city'], listing['price'], listing['rooms'], listing['area'],
-                          listing['address'], listing['image_filenames'], listing['title'], listing['description'], listing['user_id']))
-                conn.commit()
-                await query.edit_message_text(f"Объявление #{listing_id} {'одобрено' if action == 'approved' else 'отклонено'}.")
-                await context.bot.send_message(
-                    chat_id=listing['user_id'],
-                    text=f"Ваше объявление '{listing['title']}' было {'одобрено' if action == 'approved' else 'отклонено'}."
-                )
-        except Exception as e:
-            logger.error(f"Error processing listing {listing_id}: {e}")
-            if conn: conn.rollback()
-            await query.edit_message_text("Ошибка при обработке объявления.")
-        finally:
-            if conn: conn.close()
-
 # --- Telegram Bot Setup ---
+bot_application = None
+
 async def setup_bot():
     global bot_application
     bot_application = Application.builder().token(TELEGRAM_TOKEN).build()
     bot_application.add_handler(CommandHandler("start", start))
-    bot_application.add_handler(CallbackQueryHandler(button_handler))
     await bot_application.bot.set_my_commands([BotCommand("start", "Запустить бота")])
     logger.info("Telegram bot handlers set up.")
+
+# --- Background Parsing ---
+async def fetch_and_store_ads():
+    for city in CITIES.keys():
+        logger.info(f"Starting parsing for city: {city}")
+        kufar_ads = await KufarParser.fetch_ads(city)
+        onliner_ads = await asyncio.to_thread(OnlinerParser.fetch_ads, city)
+        total_ads = kufar_ads + onliner_ads
+        if total_ads:
+            store_ads(total_ads)
+            logger.info(f"Stored {len(total_ads)} ads for {city}")
 
 # --- Main Execution ---
 async def main():
     init_db()
     await setup_bot()
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(fetch_and_store_ads, 'interval', minutes=PARSE_INTERVAL)
+    scheduler.start()
+    await fetch_and_store_ads()
     config = Config()
     config.bind = ["0.0.0.0:10000"]
     await hypercorn.asyncio.serve(app, config)
