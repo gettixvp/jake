@@ -345,7 +345,7 @@ def ads_api():
     conn = None
     try:
         conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor(cursor_factory=Dict wCursor) as cur:
+        with conn.cursor(cursor_factory=DictCursor) as cur:
             cur.execute("SELECT * FROM ads WHERE source = 'Kufar' ORDER BY created_at DESC LIMIT 10")
             ads = [dict(ad) for ad in cur.fetchall()]
         return jsonify({"ads": ads})
