@@ -6,7 +6,7 @@ import os
 from typing import List, Dict, Optional
 from flask import Flask, request, jsonify, send_from_directory
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.error import Forbidden, TimedOut
 from bs4 import BeautifulSoup
 import aiohttp
@@ -23,7 +23,8 @@ from psycopg2.extras import DictCursor
 
 # --- Configuration ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7846698102:AAFR2bhmjAkPiV-PjtnFIu_oRnzxYPP1xVo")
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://neondb_owner:npg_MJr6nebWzp3C@ep-fragrant-math-a2ladk0z-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require")
+ADMIN_ID = int(os.environ.get("ADMIN_ID", 7756130972))
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgresql_6nv7_user:EQCCcg1l73t8S2g9sfF2LPVx6aA5yZts@dpg-cvlq2pggjchc738o29r0-a.frankfurt-postgres.render.com/postgresql_6nv7")
 BASE_URL = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "localhost:10000")
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0"
 REQUEST_TIMEOUT = 10
@@ -61,10 +62,23 @@ def init_db():
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor() as cur:
             cur.execute("DROP TABLE IF EXISTS ads CASCADE;")
+            cur.execute("DROP TABLE IF EXISTS users CASCADE;")
+            cur.execute("DROP TABLE IF EXISTS pending_listings CASCADE;")
+
+            cur.execute("""
+                CREATE TABLE users (
+                    id BIGINT PRIMARY KEY,
+                    first_name TEXT,
+                    last_name TEXT,
+                    username TEXT UNIQUE,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+                );
+            """)
+
             cur.execute("""
                 CREATE TABLE ads (
                     link TEXT PRIMARY KEY,
-                    source TEXT NOT NULL CHECK (source IN ('Kufar', 'Onliner')),
+                    source TEXT NOT NULL CHECK (source IN ('Kufar', 'Onliner', 'User')),
                     city TEXT,
                     price INTEGER CHECK (price >= 0),
                     rooms TEXT,
@@ -74,12 +88,30 @@ def init_db():
                     image TEXT,
                     title TEXT,
                     description TEXT,
+                    user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
                     last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
                 );
             """)
             cur.execute("CREATE INDEX ads_city_idx ON ads (city);")
             cur.execute("CREATE INDEX ads_price_idx ON ads (price);")
+
+            cur.execute("""
+                CREATE TABLE pending_listings (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    price INTEGER NOT NULL CHECK (price >= 0),
+                    rooms TEXT NOT NULL,
+                    area INTEGER CHECK (area > 0),
+                    city TEXT NOT NULL,
+                    address TEXT,
+                    image_filenames TEXT,
+                    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                    status TEXT DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'approved', 'rejected'))
+                );
+            """)
             conn.commit()
             logger.info("Database initialized successfully.")
     except Exception as e:
@@ -138,7 +170,8 @@ class KufarParser:
                                     'image': image,
                                     'rooms': params['rooms'],
                                     'area': params['area'],
-                                    'floor': params['floor']
+                                    'floor': params['floor'],
+                                    'user_id': None
                                 })
                         except Exception as e:
                             logger.error(f"Error parsing Kufar ad: {e}")
@@ -188,7 +221,7 @@ class OnlinerParser:
             query_params["rent_type[]"] = f"{rooms}_room{'s' if int(rooms) > 1 else ''}"
         elif rooms == "studio":
             query_params["rent_type[]"] = "1_room"
-            query_params["only_owner"] = "true"  # Фильтр для студий
+            query_params["only_owner"] = "true"  # Примерный фильтр для студий
         if min_price and max_price:
             query_params["price[min]"] = min_price
             query_params["price[max]"] = max_price
@@ -198,6 +231,8 @@ class OnlinerParser:
 
         chrome_options = Options()
         chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument(f"user-agent={USER_AGENT}")
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
@@ -230,7 +265,8 @@ class OnlinerParser:
                             "title": description.split(',')[0] if ',' in description else description,
                             "description": description,
                             "area": None,
-                            "floor": None
+                            "floor": None,
+                            "user_id": None
                         })
                 except Exception as e:
                     logger.error(f"Error parsing Onliner ad: {e}")
@@ -289,8 +325,8 @@ def store_ads(ads: List[Dict]) -> int:
         with conn.cursor() as cur:
             for ad in ads:
                 cur.execute("""
-                    INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, title, description)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, title, description, user_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (link) DO UPDATE SET
                         last_seen = CURRENT_TIMESTAMP,
                         price = EXCLUDED.price,
@@ -299,7 +335,7 @@ def store_ads(ads: List[Dict]) -> int:
                 """, (
                     ad.get("link"), ad.get("source"), ad.get("city"), ad.get("price"),
                     ad.get("rooms"), ad.get("area"), ad.get("floor"), ad.get("address"),
-                    ad.get("image"), ad.get("title"), ad.get("description")
+                    ad.get("image"), ad.get("title"), ad.get("description"), ad.get("user_id")
                 ))
                 if cur.fetchone()[0] == 0: added_count += 1
             conn.commit()
@@ -335,13 +371,99 @@ async def search_api():
     store_ads(ads)
     return jsonify({"ads": ads[:10]})
 
+@app.route('/api/register_user', methods=['POST'])
+def register_user_api():
+    data = request.json
+    if not data or 'user_id' not in data:
+        return jsonify({"error": "Missing user_id"}), 400
+
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO users (id, first_name, last_name, username)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    first_name = EXCLUDED.first_name,
+                    last_name = EXCLUDED.last_name,
+                    username = EXCLUDED.username;
+            """, (data['user_id'], data.get('first_name'), data.get('last_name'), data.get('username')))
+            conn.commit()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        logger.error(f"Error registering user: {e}")
+        if conn: conn.rollback()
+        return jsonify({"error": "Database Error"}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/add_listing', methods=['POST'])
+async def add_listing_api():
+    global bot_application
+    conn = None
+    try:
+        form = request.form
+        files = request.files.getlist('photos[]')
+        if not all([form.get('user_id'), form.get('title'), form.get('price'), form.get('rooms'), form.get('city')]):
+            return jsonify({"error": "Missing required fields"}), 400
+
+        price = int(form['price'])
+        area = int(form['area']) if form.get('area') and form['area'].isdigit() else None
+        image_filenames = ','.join([f.filename for f in files if f]) if files else None
+
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO pending_listings (user_id, title, description, price, rooms, area, city, address, image_filenames)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+            """, (form['user_id'], form['title'], form.get('description'), price, form['rooms'], area, form['city'], form.get('address'), image_filenames))
+            listing_id = cur.fetchone()[0]
+            conn.commit()
+
+        if bot_application:
+            await bot_application.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"Новое объявление #{listing_id}:\n🏠 {form['title']}\n💰 ${price}\n🌆 {CITIES.get(form['city'], form['city'])}",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ Approve", callback_data=f"approve_{listing_id}"),
+                     InlineKeyboardButton("❌ Reject", callback_data=f"reject_{listing_id}")]
+                ])
+            )
+        return jsonify({"status": "success", "listing_id": listing_id})
+    except Exception as e:
+        logger.error(f"Error adding listing: {e}")
+        if conn: conn.rollback()
+        return jsonify({"error": "Internal Server Error"}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/user_listings', methods=['GET'])
+def user_listings_api():
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Missing user_id"}), 400
+
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute("SELECT * FROM ads WHERE user_id = %s AND source = 'User' ORDER BY created_at DESC", (user_id,))
+            ads = [dict(ad) for ad in cur.fetchall()]
+        return jsonify({"ads": ads})
+    except Exception as e:
+        logger.error(f"Error fetching user listings: {e}")
+        return jsonify({"error": "Database Error"}), 500
+    finally:
+        if conn: conn.close()
+
 @app.route('/api/ads', methods=['GET'])
 def ads_api():
     conn = None
     try:
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("SELECT * FROM ads ORDER BY created_at DESC LIMIT 10")
+            cur.execute("SELECT * FROM ads WHERE source IN ('Kufar', 'Onliner') ORDER BY created_at DESC LIMIT 10")
             ads = [dict(ad) for ad in cur.fetchall()]
         return jsonify({"ads": ads})
     except Exception as e:
@@ -350,10 +472,36 @@ def ads_api():
     finally:
         if conn: conn.close()
 
+@app.route('/api/new_listings', methods=['GET'])
+def new_listings_api():
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Missing user_id"}), 400
+
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute("""
+                SELECT * FROM ads WHERE source IN ('Kufar', 'Onliner') AND created_at > NOW() - INTERVAL '24 hours'
+                ORDER BY created_at DESC LIMIT 10
+            """)
+            ads = [dict(ad) for ad in cur.fetchall()]
+        return jsonify({"ads": ads})
+    except Exception as e:
+        logger.error(f"Error fetching new listings: {e}")
+        return jsonify({"error": "Database Error"}), 500
+    finally:
+        if conn: conn.close()
+
 @app.route('/')
 @app.route('/mini_app.html')
 def serve_mini_app():
-    return send_from_directory('.', 'mini_app.html')
+    try:
+        return send_from_directory('.', 'mini_app.html')
+    except FileNotFoundError:
+        logger.error("mini_app.html not found")
+        return "Mini App HTML not found", 500
 
 # --- Telegram Bot Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -365,6 +513,47 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         ])
     )
 
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data.startswith("approve_") or data.startswith("reject_"):
+        if update.effective_user.id != ADMIN_ID:
+            await query.edit_message_text("У вас нет прав для модерации.")
+            return
+
+        listing_id = int(data.split("_")[1])
+        action = "approved" if data.startswith("approve_") else "rejected"
+        conn = None
+        try:
+            conn = psycopg2.connect(DATABASE_URL)
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute("UPDATE pending_listings SET status = %s WHERE id = %s RETURNING *", (action, listing_id))
+                listing = cur.fetchone()
+                if not listing:
+                    await query.edit_message_text(f"Объявление #{listing_id} не найдено.")
+                    return
+                if action == "approved":
+                    link = f"https://{BASE_URL}/listing_{listing_id}"
+                    cur.execute("""
+                        INSERT INTO ads (link, source, city, price, rooms, area, address, image, title, description, user_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (link, 'User', listing['city'], listing['price'], listing['rooms'], listing['area'],
+                          listing['address'], listing['image_filenames'], listing['title'], listing['description'], listing['user_id']))
+                conn.commit()
+                await query.edit_message_text(f"Объявление #{listing_id} {'одобрено' if action == 'approved' else 'отклонено'}.")
+                await context.bot.send_message(
+                    chat_id=listing['user_id'],
+                    text=f"Ваше объявление '{listing['title']}' было {'одобрено' if action == 'approved' else 'отклонено'}."
+                )
+        except Exception as e:
+            logger.error(f"Error processing listing {listing_id}: {e}")
+            if conn: conn.rollback()
+            await query.edit_message_text("Ошибка при обработке объявления.")
+        finally:
+            if conn: conn.close()
+
 # --- Telegram Bot Setup ---
 bot_application = None
 
@@ -372,6 +561,7 @@ async def setup_bot():
     global bot_application
     bot_application = Application.builder().token(TELEGRAM_TOKEN).build()
     bot_application.add_handler(CommandHandler("start", start))
+    bot_application.add_handler(CallbackQueryHandler(button_handler))
     await bot_application.bot.set_my_commands([BotCommand("start", "Запустить бота")])
     logger.info("Telegram bot handlers set up.")
 
