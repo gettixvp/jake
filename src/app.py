@@ -5,6 +5,7 @@ import urllib.parse
 import os
 from typing import List, Dict, Optional
 from flask import Flask, request, jsonify, send_from_directory
+import flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.error import Forbidden, TimedOut
@@ -30,6 +31,14 @@ KUFAR_LIMIT = 7
 # --- Logging Setup ---
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Отладка: Проверка версии Flask
+logger.info(f"Flask version: {flask.__version__}")
+try:
+    from flask import async_to_sync  # Проверка наличия асинхронной поддержки
+    logger.info("Flask async support detected")
+except ImportError:
+    logger.error("Flask async support NOT detected")
 
 # --- Constants ---
 CITIES = {
@@ -378,8 +387,7 @@ def new_listings_api():
     finally:
         if conn: conn.close()
 
-@app.route('/')
-@app.route('/mini_app.html')
+@app.route('/mini-app')
 def serve_mini_app():
     try:
         return send_from_directory('.', 'mini_app.html')
@@ -389,7 +397,7 @@ def serve_mini_app():
 
 # --- Telegram Bot Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    web_app_url = f"https://{BASE_URL}/mini_app.html"
+    web_app_url = f"https://{BASE_URL}/mini-app"
     await update.message.reply_text(
         "Добро пожаловать в бот поиска квартир!",
         reply_markup=InlineKeyboardMarkup([
