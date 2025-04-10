@@ -3,6 +3,7 @@ import asyncio
 import re
 import urllib.parse
 import os
+import secrets  # Для генерации случайного ID
 from typing import List, Dict, Optional
 from flask import Flask, request, jsonify, send_from_directory
 import flask
@@ -62,10 +63,11 @@ def init_db():
 
             cur.execute("""
                 CREATE TABLE users (
-                    id BIGINT PRIMARY KEY,
+                    anon_id TEXT PRIMARY KEY,
+                    telegram_id BIGINT UNIQUE,
                     first_name TEXT,
                     last_name TEXT,
-                    username TEXT UNIQUE,
+                    username TEXT,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
                 );
             """)
@@ -83,7 +85,7 @@ def init_db():
                     image TEXT,
                     title TEXT,
                     description TEXT,
-                    user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+                    user_anon_id TEXT REFERENCES users(anon_id) ON DELETE SET NULL,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
                     last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
                 );
@@ -94,7 +96,7 @@ def init_db():
             cur.execute("""
                 CREATE TABLE pending_listings (
                     id SERIAL PRIMARY KEY,
-                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    user_anon_id TEXT NOT NULL REFERENCES users(anon_id) ON DELETE CASCADE,
                     title TEXT NOT NULL,
                     description TEXT,
                     price INTEGER NOT NULL CHECK (price >= 0),
@@ -164,7 +166,7 @@ class KufarParser:
                                     'rooms': params['rooms'],
                                     'area': params['area'],
                                     'floor': params['floor'],
-                                    'user_id': None
+                                    'user_anon_id': None
                                 })
                         except Exception as e:
                             logger.error(f"Error parsing Kufar ad: {e}")
@@ -210,7 +212,7 @@ def store_ads(ads: List[Dict]) -> int:
         with conn.cursor() as cur:
             for ad in ads:
                 cur.execute("""
-                    INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, title, description, user_id)
+                    INSERT INTO ads (link, source, city, price, rooms, area, floor, address, image, title, description, user_anon_id)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (link) DO UPDATE SET
                         last_seen = CURRENT_TIMESTAMP,
@@ -220,7 +222,7 @@ def store_ads(ads: List[Dict]) -> int:
                 """, (
                     ad.get("link"), ad.get("source"), ad.get("city"), ad.get("price"),
                     ad.get("rooms"), ad.get("area"), ad.get("floor"), ad.get("address"),
-                    ad.get("image"), ad.get("title"), ad.get("description"), ad.get("user_id")
+                    ad.get("image"), ad.get("title"), ad.get("description"), ad.get("user_anon_id")
                 ))
                 if cur.fetchone()[0] == 0: added_count += 1
             conn.commit()
@@ -232,27 +234,44 @@ def store_ads(ads: List[Dict]) -> int:
     finally:
         if conn: conn.close()
 
-# --- Helper Function to Get User Info ---
-async def get_user_info(bot, user_id: int) -> Dict:
+# --- Helper Function to Get User Info and Generate Anon ID ---
+async def get_or_create_user(bot, telegram_id: int) -> Dict:
+    conn = None
     try:
-        user = await bot.get_chat(user_id)
-        return {
-            "id": user.id,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "username": user.username
-        }
+        conn = psycopg2.connect(DATABASE_URL)
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            # Проверяем, есть ли пользователь
+            cur.execute("SELECT * FROM users WHERE telegram_id = %s", (telegram_id,))
+            user = cur.fetchone()
+            if user:
+                return dict(user)
+
+            # Если нет, получаем данные из Telegram и создаём запись
+            telegram_user = await bot.get_chat(telegram_id)
+            anon_id = secrets.token_hex(8)  # Генерируем случайный ID (16 символов)
+            cur.execute("""
+                INSERT INTO users (anon_id, telegram_id, first_name, last_name, username)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING *
+            """, (anon_id, telegram_id, telegram_user.first_name, telegram_user.last_name, telegram_user.username))
+            user = cur.fetchone()
+            conn.commit()
+            logger.info(f"Created new user with anon_id: {anon_id} for telegram_id: {telegram_id}")
+            return dict(user)
     except Exception as e:
-        logger.error(f"Error fetching user info for {user_id}: {e}")
+        logger.error(f"Error fetching/creating user for telegram_id {telegram_id}: {e}")
+        if conn: conn.rollback()
         return None
+    finally:
+        if conn: conn.close()
 
 # --- Flask API Endpoints ---
 @app.route('/api/search', methods=['POST'])
 async def search_api():
     data = request.json
-    if not data or 'user_id' not in data or 'city' not in data:
-        logger.error("Missing user_id or city in request")
-        return jsonify({"error": "Missing user_id or city"}), 400
+    if not data or 'telegram_id' not in data or 'city' not in data:
+        logger.error("Missing telegram_id or city in request")
+        return jsonify({"error": "Missing telegram_id or city"}), 400
 
     try:
         kufar_ads = await KufarParser.fetch_ads(
@@ -279,36 +298,14 @@ async def search_api():
 @app.route('/api/register_user', methods=['POST'])
 async def register_user_api():
     data = request.json
-    if not data or 'user_id' not in data:
-        return jsonify({"error": "Missing user_id"}), 400
+    if not data or 'telegram_id' not in data:
+        return jsonify({"error": "Missing telegram_id"}), 400
 
-    user_id = int(data['user_id'])
-    conn = None
-    try:
-        # Получаем данные пользователя через Telegram API
-        user_info = await get_user_info(bot_application.bot, user_id)
-        if not user_info:
-            return jsonify({"error": "Failed to fetch user info from Telegram"}), 500
-
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO users (id, first_name, last_name, username)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    first_name = EXCLUDED.first_name,
-                    last_name = EXCLUDED.last_name,
-                    username = EXCLUDED.username;
-            """, (user_info['id'], user_info['first_name'], user_info['last_name'], user_info['username']))
-            conn.commit()
-        logger.info(f"User {user_id} registered/updated successfully")
-        return jsonify({"status": "success", "username": user_info['username']})
-    except Exception as e:
-        logger.error(f"Error registering user {user_id}: {e}")
-        if conn: conn.rollback()
-        return jsonify({"error": "Database Error"}), 500
-    finally:
-        if conn: conn.close()
+    telegram_id = int(data['telegram_id'])
+    user = await get_or_create_user(bot_application.bot, telegram_id)
+    if not user:
+        return jsonify({"error": "Failed to register user"}), 500
+    return jsonify({"status": "success", "anon_id": user['anon_id'], "username": user['username']})
 
 @app.route('/api/add_listing', methods=['POST'])
 async def add_listing_api():
@@ -316,41 +313,31 @@ async def add_listing_api():
     try:
         form = request.form
         files = request.files.getlist('photos[]')
-        if not all([form.get('user_id'), form.get('title'), form.get('price'), form.get('rooms'), form.get('city')]):
+        if not all([form.get('telegram_id'), form.get('title'), form.get('price'), form.get('rooms'), form.get('city')]):
             return jsonify({"error": "Missing required fields"}), 400
 
-        user_id = int(form['user_id'])
+        telegram_id = int(form['telegram_id'])
         price = int(form['price'])
         area = int(form['area']) if form.get('area') and form['area'].isdigit() else None
         image_filenames = ','.join([f.filename for f in files if f]) if files else None
 
-        # Проверяем, зарегистрирован ли пользователь
+        # Получаем или создаём пользователя
+        user = await get_or_create_user(bot_application.bot, telegram_id)
+        if not user:
+            return jsonify({"error": "Failed to fetch/create user"}), 500
+
+        # Добавляем объявление в pending_listings
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-            user = cur.fetchone()
-            if not user:
-                # Если пользователь не зарегистрирован, регистрируем его
-                user_info = await get_user_info(bot_application.bot, user_id)
-                if not user_info:
-                    return jsonify({"error": "Failed to fetch user info from Telegram"}), 500
-                cur.execute("""
-                    INSERT INTO users (id, first_name, last_name, username)
-                    VALUES (%s, %s, %s, %s)
-                """, (user_info['id'], user_info['first_name'], user_info['last_name'], user_info['username']))
-                conn.commit()
-                user = user_info
-
-            # Добавляем объявление в pending_listings
             cur.execute("""
-                INSERT INTO pending_listings (user_id, title, description, price, rooms, area, city, address, image_filenames)
+                INSERT INTO pending_listings (user_anon_id, title, description, price, rooms, area, city, address, image_filenames)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-            """, (user_id, form['title'], form.get('description'), price, form['rooms'], area, form['city'], form.get('address'), image_filenames))
+            """, (user['anon_id'], form['title'], form.get('description'), price, form['rooms'], area, form['city'], form.get('address'), image_filenames))
             listing_id = cur.fetchone()[0]
             conn.commit()
 
         # Отправляем уведомление администратору
-        username = user['username'] if user['username'] else f"User {user_id}"
+        username = user['username'] if user['username'] else f"User_{user['anon_id']}"
         await bot_application.bot.send_message(
             chat_id=ADMIN_ID,
             text=f"Новое объявление #{listing_id} от @{username}:\n🏠 {form['title']}\n💰 ${price}\n🌆 {CITIES.get(form['city'], form['city'])}",
@@ -369,15 +356,19 @@ async def add_listing_api():
 
 @app.route('/api/user_listings', methods=['GET'])
 def user_listings_api():
-    user_id = request.args.get('user_id')
-    if not user_id:
-        return jsonify({"error": "Missing user_id"}), 400
+    telegram_id = request.args.get('telegram_id')
+    if not telegram_id:
+        return jsonify({"error": "Missing telegram_id"}), 400
 
     conn = None
     try:
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("SELECT * FROM ads WHERE user_id = %s AND source = 'User' ORDER BY created_at DESC", (user_id,))
+            cur.execute("SELECT anon_id FROM users WHERE telegram_id = %s", (telegram_id,))
+            user = cur.fetchone()
+            if not user:
+                return jsonify({"error": "User not found"}), 404
+            cur.execute("SELECT * FROM ads WHERE user_anon_id = %s AND source = 'User' ORDER BY created_at DESC", (user['anon_id'],))
             ads = [dict(ad) for ad in cur.fetchall()]
         return jsonify({"ads": ads})
     except Exception as e:
@@ -403,9 +394,9 @@ def ads_api():
 
 @app.route('/api/new_listings', methods=['GET'])
 def new_listings_api():
-    user_id = request.args.get('user_id')
-    if not user_id:
-        return jsonify({"error": "Missing user_id"}), 400
+    telegram_id = request.args.get('telegram_id')
+    if not telegram_id:
+        return jsonify({"error": "Missing telegram_id"}), 400
 
     conn = None
     try:
@@ -433,25 +424,11 @@ def serve_mini_app():
 
 # --- Telegram Bot Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    conn = None
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO users (id, first_name, last_name, username)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    first_name = EXCLUDED.first_name,
-                    last_name = EXCLUDED.last_name,
-                    username = EXCLUDED.username;
-            """, (user_id, update.effective_user.first_name, update.effective_user.last_name, update.effective_user.username))
-            conn.commit()
-    except Exception as e:
-        logger.error(f"Error registering user on start: {e}")
-        if conn: conn.rollback()
-    finally:
-        if conn: conn.close()
+    telegram_id = update.effective_user.id
+    user = await get_or_create_user(context.bot, telegram_id)
+    if not user:
+        await update.message.reply_text("Ошибка при регистрации пользователя.")
+        return
 
     web_app_url = f"https://{BASE_URL}/mini-app"
     await update.message.reply_text(
@@ -485,14 +462,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 if action == "approved":
                     link = f"https://{BASE_URL}/listing_{listing_id}"
                     cur.execute("""
-                        INSERT INTO ads (link, source, city, price, rooms, area, address, image, title, description, user_id)
+                        INSERT INTO ads (link, source, city, price, rooms, area, address, image, title, description, user_anon_id)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (link, 'User', listing['city'], listing['price'], listing['rooms'], listing['area'],
-                          listing['address'], listing['image_filenames'], listing['title'], listing['description'], listing['user_id']))
+                          listing['address'], listing['image_filenames'], listing['title'], listing['description'], listing['user_anon_id']))
                 conn.commit()
                 await query.edit_message_text(f"Объявление #{listing_id} {'одобрено' if action == 'approved' else 'отклонено'}.")
+                # Получаем Telegram ID пользователя для уведомления
+                cur.execute("SELECT telegram_id FROM users WHERE anon_id = %s", (listing['user_anon_id'],))
+                telegram_id = cur.fetchone()['telegram_id']
                 await context.bot.send_message(
-                    chat_id=listing['user_id'],
+                    chat_id=telegram_id,
                     text=f"Ваше объявление '{listing['title']}' было {'одобрено' if action == 'approved' else 'отклонено'}."
                 )
         except Exception as e:
@@ -509,7 +489,7 @@ async def setup_bot():
     bot_application.add_handler(CommandHandler("start", start))
     bot_application.add_handler(CallbackQueryHandler(button_handler))
     await bot_application.bot.set_my_commands([BotCommand("start", "Запустить бота")])
-    await bot_application.initialize()  # Инициализируем бот заранее
+    await bot_application.initialize()
     logger.info("Telegram bot handlers set up.")
 
 # --- Background Parsing ---
