@@ -10,11 +10,6 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from telegram.error import Forbidden, TimedOut
 from bs4 import BeautifulSoup
 import aiohttp
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.options import Options
-import time
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import hypercorn.asyncio
 from hypercorn.config import Config
@@ -47,12 +42,12 @@ CITIES = {
 }
 
 ONLINER_CITY_URLS = {
-    "minsk": "https://r.onliner.by/ak/#bounds[lb][lat]=53.820922446131&bounds[lb][long]=27.344970703125&bounds[rt][lat]=53.97547425743&bounds[rt][long]=27.77961730957",
-    "brest": "https://r.onliner.by/ak/#bounds[lb][lat]=51.941725203142&bounds[lb][long]=23.492889404297&bounds[rt][lat]=52.234528294214&bounds[rt][long]=23.927536010742",
-    "vitebsk": "https://r.onliner.by/ak/#bounds[lb][lat]=55.085834940707&bounds[lb][long]=29.979629516602&bounds[rt][lat]=55.357648391381&bounds[rt][long]=30.414276123047",
-    "gomel": "https://r.onliner.by/ak/#bounds[lb][lat]=52.302600726968&bounds[lb][long]=30.732192993164&bounds[rt][lat]=52.593037841157&bounds[rt][long]=31.166839599609",
-    "grodno": "https://r.onliner.by/ak/#bounds[lb][lat]=53.538267122397&bounds[lb][long]=23.629531860352&bounds[rt][lat]=53.820517109806&bounds[rt][long]=24.064178466797",
-    "mogilev": "https://r.onliner.by/ak/#bounds[lb][lat]=53.74261986683&bounds[lb][long]=30.132064819336&bounds[rt][lat]=54.023503252809&bounds[rt][long]=30.566711425781",
+    "minsk": "https://r.onliner.by/ak/",
+    "brest": "https://r.onliner.by/ak/",
+    "vitebsk": "https://r.onliner.by/ak/",
+    "gomel": "https://r.onliner.by/ak/",
+    "grodno": "https://r.onliner.by/ak/",
+    "mogilev": "https://r.onliner.by/ak/",
 }
 
 # --- Database Initialization ---
@@ -207,10 +202,11 @@ class KufarParser:
         rooms_valid = target_rooms is None or rooms == target_rooms
         return price_valid and rooms_valid
 
-# --- Onliner Parser ---
+# --- Onliner Parser (Async) ---
 class OnlinerParser:
     @staticmethod
-    def fetch_ads(city: str, min_price: Optional[int] = None, max_price: Optional[int] = None, rooms: Optional[str] = None) -> List[Dict]:
+    async def fetch_ads(city: str, min_price: Optional[int] = None, max_price: Optional[int] = None, rooms: Optional[str] = None) -> List[Dict]:
+        headers = {"User-Agent": USER_AGENT}
         base_url = ONLINER_CITY_URLS.get(city)
         if not base_url:
             logger.error(f"Unknown city for Onliner: {city}")
@@ -225,57 +221,49 @@ class OnlinerParser:
         if min_price and max_price:
             query_params["price[min]"] = min_price
             query_params["price[max]"] = max_price
-        
-        url = base_url if not query_params else f"https://r.onliner.by/ak/?{urllib.parse.urlencode(query_params)}#{base_url.split('#')[1]}"
+        query_params["location[0]"] = city
+
+        url = f"{base_url}?{urllib.parse.urlencode(query_params)}"
         logger.info(f"Fetching Onliner ads from: {url}")
 
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument(f"user-agent={USER_AGENT}")
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)) as response:
+                    response.raise_for_status()
+                    soup = BeautifulSoup(await response.text(), "html.parser")
+                    ads = []
+                    for ad in soup.select("a[href*='/ak/apartments/']")[:ONLINER_LIMIT]:
+                        try:
+                            link = ad.get("href", "")
+                            if not link.startswith("https://r.onliner.by/ak/apartments/"):
+                                continue
+                            price = OnlinerParser._parse_price(ad)
+                            room_count = OnlinerParser._parse_rooms(ad)
+                            address = OnlinerParser._parse_address(ad)
+                            image = OnlinerParser._parse_image(ad)
+                            description = OnlinerParser._parse_description(ad)
 
-        try:
-            driver.get(url)
-            time.sleep(5)
-            soup = BeautifulSoup(driver.page_source, "html.parser")
-            ads = soup.select("a[href*='/ak/apartments/']")[:ONLINER_LIMIT]
-            results = []
-            for ad in ads:
-                try:
-                    link = ad.get("href", "")
-                    if not link.startswith("https://r.onliner.by/ak/apartments/"):
-                        continue
-                    price = OnlinerParser._parse_price(ad)
-                    room_count = OnlinerParser._parse_rooms(ad)
-                    address = OnlinerParser._parse_address(ad)
-                    image = OnlinerParser._parse_image(ad)
-                    description = OnlinerParser._parse_description(ad)
-
-                    if OnlinerParser._check_filters(price, room_count, min_price, max_price, rooms):
-                        results.append({
-                            "link": link,
-                            "source": "Onliner",
-                            "city": city,
-                            "price": price,
-                            "rooms": room_count,
-                            "address": address,
-                            "image": image,
-                            "title": description.split(',')[0] if ',' in description else description,
-                            "description": description,
-                            "area": None,
-                            "floor": None,
-                            "user_id": None
-                        })
-                except Exception as e:
-                    logger.error(f"Error parsing Onliner ad: {e}")
-            return results
-        except Exception as e:
-            logger.error(f"Error fetching Onliner for {city}: {e}")
-            return []
-        finally:
-            driver.quit()
+                            if OnlinerParser._check_filters(price, room_count, min_price, max_price, rooms):
+                                ads.append({
+                                    "link": link,
+                                    "source": "Onliner",
+                                    "city": city,
+                                    "price": price,
+                                    "rooms": room_count,
+                                    "address": address,
+                                    "image": image,
+                                    "title": description.split(',')[0] if ',' in description else description,
+                                    "description": description,
+                                    "area": None,
+                                    "floor": None,
+                                    "user_id": None
+                                })
+                        except Exception as e:
+                            logger.error(f"Error parsing Onliner ad: {e}")
+                    return ads
+            except Exception as e:
+                logger.error(f"Error fetching Onliner for {city}: {e}")
+                return []
 
     @staticmethod
     def _parse_price(ad) -> Optional[int]:
@@ -360,8 +348,7 @@ async def search_api():
         data.get('max_price'),
         data.get('rooms')
     )
-    onliner_ads = await asyncio.to_thread(
-        OnlinerParser.fetch_ads,
+    onliner_ads = await OnlinerParser.fetch_ads(
         data['city'],
         data.get('min_price'),
         data.get('max_price'),
@@ -570,7 +557,7 @@ async def fetch_and_store_ads():
     for city in CITIES.keys():
         logger.info(f"Starting parsing for city: {city}")
         kufar_ads = await KufarParser.fetch_ads(city)
-        onliner_ads = await asyncio.to_thread(OnlinerParser.fetch_ads, city)
+        onliner_ads = await OnlinerParser.fetch_ads(city)
         total_ads = kufar_ads + onliner_ads
         if total_ads:
             store_ads(total_ads)
