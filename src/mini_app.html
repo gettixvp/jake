@@ -188,7 +188,7 @@
             box-shadow: var(--tg-theme-bg-color, black) 0px 0px 0px 0px, var(--tg-theme-bg-color, black) 0px 0px 0px 0px, rgba(255, 255, 255, 0.1) 0px 10px 15px -3px, rgba(255, 255, 255, 0.1) 0px 4px 6px -4px;
         }
         .safe-area {
-            padding-top: var(--tg-safe-area-inset-top, 110px);
+            padding-top: calc(var(--tg-safe-area-inset-top, 0px) + 20%);
             padding-left: var(--tg-safe-area-inset-left, 0px);
             padding-right: var(--tg-safe-area-inset-right, 0px);
             min-height: var(--tg-viewport-stable-height, 0h);
@@ -264,7 +264,6 @@
             transition: transform 0.2s ease;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        /* Стили для капчи */
         .captcha-modal {
             display: none;
             position: fixed;
@@ -519,7 +518,6 @@
         </div>
     </div>
 
-    <!-- Модальное окно для капчи -->
     <div id="captcha-modal" class="captcha-modal">
         <div class="captcha-content soft-card shadow-soft-lg">
             <h3 class="text-lg font-semibold text-soft-dark mb-4">Введите код капчи</h3>
@@ -541,11 +539,10 @@
         let userId = null;
         let captchaCode = null;
 
-        // Автоматическое открытие на весь экран
         document.addEventListener('DOMContentLoaded', () => {
-            tg.expand(); // Разворачиваем Mini App на весь экран
-            tg.requestFullscreen(); // Запрашиваем полноэкранный режим
-            tg.ready(); // Сообщаем Telegram, что приложение готово
+            tg.expand();
+            tg.requestFullscreen();
+            tg.ready();
 
             userId = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null;
             if (!userId) {
@@ -553,16 +550,10 @@
                 return;
             }
 
-            // Регистрация пользователя
             fetch('/api/register_user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: userId,
-                    first_name: tg.initDataUnsafe.user.first_name,
-                    last_name: tg.initDataUnsafe.user.last_name,
-                    username: tg.initDataUnsafe.user.username
-                })
+                body: JSON.stringify({ telegram_id: userId })
             }).then(response => response.json()).then(data => {
                 if (data.status === 'success') {
                     loadProfile();
@@ -573,7 +564,6 @@
             }).catch(err => console.error('Ошибка регистрации:', err));
         });
 
-        // Переключение вкладок
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
@@ -588,20 +578,17 @@
             });
         });
 
-        // Переключение темы
         const themeToggle = document.getElementById('theme-toggle');
         themeToggle.addEventListener('change', () => {
             document.body.classList.toggle('dark');
             localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
         });
 
-        // Загрузка сохраненной темы
         if (localStorage.getItem('theme') === 'dark') {
             document.body.classList.add('dark');
             themeToggle.checked = true;
         }
 
-        // Загрузка профиля
         function loadProfile() {
             const user = tg.initDataUnsafe.user;
             document.getElementById('profile-name').textContent = user.first_name || 'Пользователь';
@@ -614,12 +601,11 @@
                 photoDiv.innerHTML = '';
                 photoDiv.appendChild(img);
             }
-            fetch(`/api/user_listings?user_id=${userId}`).then(res => res.json()).then(data => {
+            fetch(`/api/user_listings?telegram_id=${userId}`).then(res => res.json()).then(data => {
                 document.getElementById('profile-ad-count').textContent = data.ads.length;
             });
         }
 
-        // Поиск
         document.getElementById('search-btn').addEventListener('click', () => {
             const minPrice = document.getElementById('min-price').value;
             const maxPrice = document.getElementById('max-price').value;
@@ -632,7 +618,7 @@
             }
 
             const searchData = {
-                user_id: userId,
+                telegram_id: userId,
                 city: city,
                 min_price: minPrice ? parseInt(minPrice) : null,
                 max_price: maxPrice ? parseInt(maxPrice) : null,
@@ -653,7 +639,7 @@
                     alert(data.error);
                     return;
                 }
-                captchaCode = null; // Сбрасываем код капчи после успешного поиска
+                captchaCode = null;
                 const resultsContainer = document.getElementById('results-container');
                 resultsContainer.innerHTML = '';
                 if (data.ads.length === 0) {
@@ -670,7 +656,6 @@
             });
         });
 
-        // Обработка капчи
         function showCaptchaModal() {
             const modal = document.getElementById('captcha-modal');
             modal.classList.add('active');
@@ -684,7 +669,7 @@
             }
             document.getElementById('captcha-modal').classList.remove('active');
             document.getElementById('captcha-input').value = '';
-            document.getElementById('search-btn').click(); // Повторяем поиск с кодом капчи
+            document.getElementById('search-btn').click();
         });
 
         document.getElementById('captcha-cancel').addEventListener('click', () => {
@@ -693,7 +678,6 @@
             captchaCode = null;
         });
 
-        // Загрузка популярных объявлений
         function loadPopular() {
             fetch('/api/ads').then(res => res.json()).then(data => {
                 const container = document.getElementById('popular-container');
@@ -708,9 +692,8 @@
             });
         }
 
-        // Загрузка новых объявлений
         function loadNewListings() {
-            fetch(`/api/new_listings?user_id=${userId}`).then(res => res.json()).then(data => {
+            fetch(`/api/new_listings?telegram_id=${userId}`).then(res => res.json()).then(data => {
                 const container = document.getElementById('new-listings');
                 container.innerHTML = '';
                 if (data.ads.length === 0) {
@@ -727,9 +710,8 @@
             });
         }
 
-        // Загрузка пользовательских объявлений
         function loadUserListings() {
-            fetch(`/api/user_listings?user_id=${userId}`).then(res => res.json()).then(data => {
+            fetch(`/api/user_listings?telegram_id=${userId}`).then(res => res.json()).then(data => {
                 const container = document.getElementById('user-listings');
                 container.innerHTML = '';
                 if (data.ads.length === 0) {
@@ -742,7 +724,6 @@
             });
         }
 
-        // Создание карточки объявления
         function createApartmentCard(ad) {
             const card = document.createElement('div');
             card.className = 'apartment-card soft-card shadow-soft';
@@ -777,7 +758,6 @@
             return card;
         }
 
-        // Добавление объявления
         document.getElementById('add-listing-btn').addEventListener('click', () => {
             document.getElementById('add-listing-form').classList.remove('hidden');
             document.getElementById('user-listings').classList.add('hidden');
@@ -790,7 +770,6 @@
             document.getElementById('preview-container').innerHTML = '';
         });
 
-        // Обработка загрузки изображений
         const fileInput = document.getElementById('file-input');
         const imageUpload = document.getElementById('image-upload');
         const previewContainer = document.getElementById('preview-container');
@@ -836,11 +815,10 @@
             });
         }
 
-        // Отправка формы объявления
         document.getElementById('listing-form').addEventListener('submit', (e) => {
             e.preventDefault();
             const formData = new FormData();
-            formData.append('user_id', userId);
+            formData.append('telegram_id', userId);
             formData.append('title', e.target.title.value);
             formData.append('description', e.target.description.value);
             formData.append('price', e.target.price.value);
@@ -874,32 +852,6 @@
             });
         });
 
-        // В mini_app.html или твоём JS-файле
-Telegram.WebApp.ready();
-const telegram_id = Telegram.WebApp.initDataUnsafe.user.id;
-
-fetch('/api/register_user', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ telegram_id: telegram_id })
-}).then(response => response.json()).then(data => {
-  console.log('Registered with anon_id:', data.anon_id);
-});
-
-// При подаче объявления
-const formData = new FormData();
-formData.append('telegram_id', telegram_id);
-formData.append('title', 'Квартира в центре');
-formData.append('price', '500');
-// ... другие поля
-fetch('/api/add_listing', {
-  method: 'POST',
-  body: formData
-}).then(response => response.json()).then(data => {
-  console.log('Listing submitted:', data.listing_id);
-});
-        
-        // Выход
         document.getElementById('logout-btn').addEventListener('click', () => {
             tg.close();
         });

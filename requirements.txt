@@ -1,7 +1,9 @@
-flask[async]
-python-telegram-bot
-beautifulsoup4
-aiohttp
-apscheduler
-hypercorn
-psycopg2-binary
+aiohttp==3.9.5
+apscheduler==3.10.4
+beautifulsoup4==4.12.3
+flask==3.0.3
+hypercorn==0.17.3
+psycopg2-binary==2.9.9
+pytelegrambotapi==4.15.0
+selenium==4.25.0
+webdriver-manager==4.0.2
