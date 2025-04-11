@@ -28,6 +28,22 @@
                         'soft': '0 4px 20px rgba(0, 0, 0, 0.08)',
                         'soft-lg': '0 10px 30px rgba(0, 0, 0, 0.12)',
                         'soft-xl': '0 15px 40px rgba(0, 0, 0, 0.15)'
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-up': 'slideUp 0.4s ease-out',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-slow': 'bounce 2s infinite'
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' }
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' }
+                        }
                     }
                 }
             }
@@ -42,19 +58,20 @@
             transition: background-color 0.3s ease, color 0.3s ease;
             margin: 0;
             overscroll-behavior: none;
+            padding-bottom: 70px;
         }
         body.dark {
             background-color: #1e293b;
-            color: #ffffff; /* Изменено на белый для лучшей читаемости */
+            color: #f8fafc;
         }
         body.dark .soft-card {
             background: rgba(45, 55, 72, 0.85);
             border: 1px solid rgba(71, 85, 105, 0.5);
-            color: #ffffff;
+            color: #f8fafc;
         }
         body.dark .soft-input {
             background: rgba(45, 55, 72, 0.7);
-            color: #ffffff;
+            color: #f8fafc;
             border-color: #4b5563;
         }
         body.dark .soft-input::placeholder {
@@ -65,7 +82,7 @@
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
         }
         body.dark .text-soft-dark {
-            color: var(--tg-theme-text-color, #ffffff);
+            color: var(--tg-theme-text-color, #f8fafc);
         }
         body.dark .text-soft-gray {
             color: #9ca3af;
@@ -128,6 +145,7 @@
             text-align: center;
             font-weight: 600;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            animation: pulse-slow;
         }
         .image-upload {
             border: 2px dashed var(--tg-theme-hint-color, #cbd5e1);
@@ -188,7 +206,7 @@
             box-shadow: var(--tg-theme-bg-color, black) 0px 0px 0px 0px, var(--tg-theme-bg-color, black) 0px 0px 0px 0px, rgba(255, 255, 255, 0.1) 0px 10px 15px -3px, rgba(255, 255, 255, 0.1) 0px 4px 6px -4px;
         }
         .safe-area {
-            padding-top: calc(var(--tg-safe-area-inset-top, 0px) + 30%); /* Смещение на 30% */
+            padding-top: 30px;
             padding-left: var(--tg-safe-area-inset-left, 0px);
             padding-right: var(--tg-safe-area-inset-right, 0px);
             min-height: var(--tg-viewport-stable-height, 0h);
@@ -213,7 +231,7 @@
             border-top: 1px solid var(--tg-theme-hint-color, #e5e7eb);
             padding-bottom: var(--tg-safe-area-inset-bottom, 0px);
             height: calc(60px + var(--tg-safe-area-inset-bottom, 0px));
-            box-sizing: content-content;
+            box-sizing: content-box;
             box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.05);
             display: flex;
             justify-content: space-around;
@@ -226,13 +244,24 @@
         }
         .tab-btn {
             color: var(--tg-theme-hint-color, #94a3b8);
-            transition: color 0.2s ease;
+            transition: color 0.2s ease, transform 0.2s ease;
         }
         .tab-btn.text-soft-primary {
             color: var(--tg-theme-button-color, #6366f1);
         }
-        .tab-btn i { font-size: 20px; }
-        .tab-btn span { font-size: 10px; margin-top: 2px; font-weight: 500; }
+        .tab-btn i { 
+            font-size: 20px;
+            transition: transform 0.3s ease;
+        }
+        .tab-btn.active i {
+            transform: scale(1.2);
+        }
+        .tab-btn span { 
+            font-size: 10px; 
+            margin-top: 2px; 
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
         .toggle-checkbox:checked + .toggle-label {
             background-color: var(--tg-theme-button-color, #6366f1);
         }
@@ -278,6 +307,7 @@
         }
         .captcha-modal.active {
             display: flex;
+            animation: fadeIn 0.3s ease-out;
         }
         .captcha-content {
             background: var(--tg-theme-bg-color, #f8fafc);
@@ -286,9 +316,102 @@
             width: 90%;
             max-width: 400px;
             text-align: center;
+            animation: slideUp 0.4s ease-out;
         }
         body.dark .captcha-content {
             background: #1e293b;
+        }
+        .welcome-card {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        .welcome-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+            transform: rotate(30deg);
+        }
+        .price-tag {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            backdrop-filter: blur(5px);
+        }
+        .feature-badge {
+            display: inline-flex;
+            align-items: center;
+            background-color: rgba(99, 102, 241, 0.1);
+            color: var(--tg-theme-button-color, #6366f1);
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        body.dark .feature-badge {
+            background-color: rgba(99, 102, 241, 0.2);
+        }
+        .skeleton {
+            background-color: #e2e8f0;
+            border-radius: 8px;
+            animation: pulse-slow 2s infinite;
+        }
+        body.dark .skeleton {
+            background-color: #334155;
+        }
+        .loading-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(99, 102, 241, 0.2);
+            border-top-color: var(--tg-theme-button-color, #6366f1);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .tooltip {
+            position: relative;
+        }
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .tooltip-text {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(5px);
+            background-color: #1e293b;
+            color: white;
+            text-align: center;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        body.dark .tooltip-text {
+            background-color: #f8fafc;
+            color: #1e293b;
         }
     </style>
 </head>
@@ -297,103 +420,192 @@
         <div class="content-wrapper">
             <div id="home-tab" class="tab-content active p-4">
                 <div class="mb-6">
-                    <div class="soft-card p-6 mb-6 shadow-soft">
-                        <h2 class="text-xl font-semibold text-soft-dark mb-3">Добро пожаловать!</h2>
-                        <p class="text-soft-gray mb-4 text-sm">
-                            Найдите идеальную квартиру в Беларуси. Ищите или добавляйте свои объявления.
+                    <div class="soft-card p-6 mb-6 shadow-soft welcome-card">
+                        <h2 class="text-xl font-semibold text-white mb-3">Найдите идеальное жильё</h2>
+                        <p class="text-white text-opacity-90 mb-4 text-sm">
+                            Тысячи вариантов аренды квартир в Беларуси. Быстрый поиск и удобные фильтры.
                         </p>
+                        <div class="absolute bottom-4 right-4">
+                            <i class="fas fa-home text-white text-opacity-30 text-4xl"></i>
+                        </div>
                     </div>
 
                     <div class="soft-card p-6 shadow-soft mb-6">
-                        <h3 class="text-lg font-semibold text-soft-dark mb-4">Быстрый поиск</h3>
+                        <h3 class="text-lg font-semibold text-soft-dark mb-4 flex items-center">
+                            <i class="fas fa-sliders-h text-soft-primary mr-2"></i>
+                            Параметры поиска
+                        </h3>
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-soft-dark mb-1">Цена ($)</label>
+                                <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                    <i class="fas fa-dollar-sign text-soft-gray mr-1 text-xs"></i>
+                                    Цена ($)
+                                </label>
                                 <div class="flex space-x-3">
-                                    <input type="number" id="min-price" placeholder="от" class="soft-input w-1/2 p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
-                                    <input type="number" id="max-price" placeholder="до" class="soft-input w-1/2 p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
+                                    <div class="relative w-1/2">
+                                        <input type="number" id="min-price" placeholder="от" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm pl-8">
+                                        <i class="fas fa-arrow-down text-soft-gray absolute left-3 top-3.5 text-xs"></i>
+                                    </div>
+                                    <div class="relative w-1/2">
+                                        <input type="number" id="max-price" placeholder="до" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm pl-8">
+                                        <i class="fas fa-arrow-up text-soft-gray absolute left-3 top-3.5 text-xs"></i>
+                                    </div>
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-soft-dark mb-1">Комнаты</label>
-                                <select id="rooms" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
-                                    <option value="">Любое количество</option>
-                                    <option value="1">1</option>
-                                    <option value="2">2</option>
-                                    <option value="3">3</option>
-                                    <option value="4+">4+</option>
-                                    <option value="studio">Студия</option>
-                                </select>
+                                <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                    <i class="fas fa-door-open text-soft-gray mr-1 text-xs"></i>
+                                    Комнаты
+                                </label>
+                                <div class="relative">
+                                    <select id="rooms" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
+                                        <option value="">Любое количество</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4+">4+</option>
+                                        <option value="studio">Студия</option>
+                                    </select>
+                                    <i class="fas fa-chevron-down text-soft-gray absolute right-3 top-3.5 text-xs pointer-events-none"></i>
+                                </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-soft-dark mb-1">Город</label>
-                                <select id="city" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
-                                    <option value="">Все города</option>
-                                    <option value="minsk">Минск</option>
-                                    <option value="brest">Брест</option>
-                                    <option value="vitebsk">Витебск</option>
-                                    <option value="gomel">Гомель</option>
-                                    <option value="grodno">Гродно</option>
-                                    <option value="mogilev">Могилев</option>
-                                </select>
+                                <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                    <i class="fas fa-city text-soft-gray mr-1 text-xs"></i>
+                                    Город
+                                </label>
+                                <div class="relative">
+                                    <select id="city" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
+                                        <option value="">Все города</option>
+                                        <option value="minsk">Минск</option>
+                                        <option value="brest">Брест</option>
+                                        <option value="vitebsk">Витебск</option>
+                                        <option value="gomel">Гомель</option>
+                                        <option value="grodno">Гродно</option>
+                                        <option value="mogilev">Могилев</option>
+                                    </select>
+                                    <i class="fas fa-chevron-down text-soft-gray absolute right-3 top-3.5 text-xs pointer-events-none"></i>
+                                </div>
                             </div>
                         </div>
-                        <button id="search-btn" class="soft-btn mt-6 w-full bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-3 px-4 rounded-xl flex items-center justify-center font-semibold">
-                            <i class="fas fa-search mr-2"></i> Найти
+                        <button id="search-btn" class="soft-btn mt-6 w-full bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-3 px-4 rounded-xl flex items-center justify-center font-semibold hover:shadow-lg transition-all duration-300">
+                            <i class="fas fa-search mr-2"></i> Найти квартиру
                         </button>
                     </div>
                 </div>
 
                 <div id="search-results" class="hidden mb-6">
-                    <h3 class="text-lg font-semibold text-soft-dark mb-4">Результаты поиска</h3>
+                    <h3 class="text-lg font-semibold text-soft-dark mb-4 flex items-center">
+                        <i class="fas fa-list-ul text-soft-primary mr-2"></i>
+                        Результаты поиска
+                    </h3>
                     <div id="results-container" class="space-y-4">
-                        <div class="text-center text-soft-gray p-5 text-sm">Заполните форму и нажмите "Найти".</div>
+                        <div class="text-center text-soft-gray p-5 text-sm">Заполните параметры поиска и нажмите "Найти квартиру".</div>
                     </div>
                 </div>
 
                 <div class="mt-6">
-                    <h3 class="text-lg font-semibold text-soft-dark mb-4">Популярные</h3>
-                    <div class="grid grid-cols-1 gap-4" id="popular-container"></div>
+                    <h3 class="text-lg font-semibold text-soft-dark mb-4 flex items-center">
+                        <i class="fas fa-fire text-soft-warning mr-2"></i>
+                        Популярные предложения
+                    </h3>
+                    <div class="grid grid-cols-1 gap-4" id="popular-container">
+                        <!-- Skeleton loading -->
+                        <div class="soft-card p-4 shadow-soft">
+                            <div class="flex space-x-4">
+                                <div class="skeleton w-20 h-20 rounded-lg"></div>
+                                <div class="flex-1 space-y-2">
+                                    <div class="skeleton h-4 w-3/4 rounded"></div>
+                                    <div class="skeleton h-3 w-1/2 rounded"></div>
+                                    <div class="skeleton h-3 w-2/3 rounded"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="soft-card p-4 shadow-soft">
+                            <div class="flex space-x-4">
+                                <div class="skeleton w-20 h-20 rounded-lg"></div>
+                                <div class="flex-1 space-y-2">
+                                    <div class="skeleton h-4 w-3/4 rounded"></div>
+                                    <div class="skeleton h-3 w-1/2 rounded"></div>
+                                    <div class="skeleton h-3 w-2/3 rounded"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div id="new-tab" class="tab-content p-4">
                 <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-xl font-semibold text-soft-dark">Новые объявления</h2>
-                    <span id="new-badge" class="bg-red-500 text-white text-xs px-2 py-1 rounded-full hidden">0</span>
+                    <h2 class="text-xl font-semibold text-soft-dark flex items-center">
+                        <i class="fas fa-bell text-soft-primary mr-2"></i>
+                        Новые объявления
+                    </h2>
+                    <span id="new-badge" class="bg-red-500 text-white text-xs px-2 py-1 rounded-full hidden animate-bounce-slow">0</span>
                 </div>
-                <div class="space-y-4" id="new-listings"></div>
+                <div class="space-y-4" id="new-listings">
+                    <div class="text-center py-10">
+                        <div class="loading-spinner mb-3"></div>
+                        <p class="text-sm text-soft-gray">Загрузка новых объявлений...</p>
+                    </div>
+                </div>
             </div>
 
             <div id="user-tab" class="tab-content p-4">
                 <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-xl font-semibold text-soft-dark">Мои объявления</h2>
-                    <button id="add-listing-btn" class="soft-btn bg-soft-primary text-white py-2 px-4 rounded-xl text-sm flex items-center font-medium">
+                    <h2 class="text-xl font-semibold text-soft-dark flex items-center">
+                        <i class="fas fa-home text-soft-primary mr-2"></i>
+                        Мои объявления
+                    </h2>
+                    <button id="add-listing-btn" class="soft-btn bg-soft-primary text-white py-2 px-4 rounded-xl text-sm flex items-center font-medium hover:shadow-lg transition-all duration-300">
                         <i class="fas fa-plus mr-1 text-xs"></i> Добавить
                     </button>
                 </div>
 
-                <div id="user-listings" class="space-y-4"></div>
+                <div id="user-listings" class="space-y-4">
+                    <div class="text-center py-10">
+                        <i class="fas fa-home text-soft-gray text-3xl mb-3"></i>
+                        <p class="text-sm text-soft-gray">У вас пока нет объявлений</p>
+                        <button id="add-first-listing" class="soft-btn mt-4 bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-2 px-6 rounded-xl text-sm font-medium">
+                            Добавить первое объявление
+                        </button>
+                    </div>
+                </div>
 
                 <div id="add-listing-form" class="hidden mt-6">
                     <div class="soft-card p-6 shadow-soft">
-                        <h3 class="text-lg font-semibold text-soft-dark mb-5">Новое объявление</h3>
+                        <h3 class="text-lg font-semibold text-soft-dark mb-5 flex items-center">
+                            <i class="fas fa-plus-circle text-soft-primary mr-2"></i>
+                            Новое объявление
+                        </h3>
                         <form id="listing-form" class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-soft-dark mb-1">Заголовок <span class="text-red-500">*</span></label>
+                                <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                    <i class="fas fa-heading text-soft-gray mr-1 text-xs"></i>
+                                    Заголовок <span class="text-red-500 ml-1">*</span>
+                                </label>
                                 <input type="text" name="title" required class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm" placeholder="Напр., Уютная 1-комнатная квартира">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-soft-dark mb-1">Описание</label>
+                                <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                    <i class="fas fa-align-left text-soft-gray mr-1 text-xs"></i>
+                                    Описание
+                                </label>
                                 <textarea name="description" rows="4" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm" placeholder="Подробно опишите ваше жилье..."></textarea>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-soft-dark mb-1">Цена ($/месяц) <span class="text-red-500">*</span></label>
+                                <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                    <i class="fas fa-dollar-sign text-soft-gray mr-1 text-xs"></i>
+                                    Цена ($/месяц) <span class="text-red-500 ml-1">*</span>
+                                </label>
                                 <input type="number" name="price" required class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm" placeholder="500">
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-soft-dark mb-1">Комнаты <span class="text-red-500">*</span></label>
+                                    <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                        <i class="fas fa-door-open text-soft-gray mr-1 text-xs"></i>
+                                        Комнаты <span class="text-red-500 ml-1">*</span>
+                                    </label>
                                     <select name="rooms" required class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
                                         <option value="1">1</option>
                                         <option value="2" selected>2</option>
@@ -403,13 +615,19 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-soft-dark mb-1">Площадь (м²)</label>
+                                    <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                        <i class="fas fa-ruler-combined text-soft-gray mr-1 text-xs"></i>
+                                        Площадь (м²)
+                                    </label>
                                     <input type="number" name="area" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm" placeholder="45">
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-soft-dark mb-1">Город <span class="text-red-500">*</span></label>
+                                    <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                        <i class="fas fa-city text-soft-gray mr-1 text-xs"></i>
+                                        Город <span class="text-red-500 ml-1">*</span>
+                                    </label>
                                     <select name="city" required class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm">
                                         <option value="minsk" selected>Минск</option>
                                         <option value="brest">Брест</option>
@@ -420,24 +638,31 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-soft-dark mb-1">Адрес</label>
+                                    <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                        <i class="fas fa-map-marker-alt text-soft-gray mr-1 text-xs"></i>
+                                        Адрес
+                                    </label>
                                     <input type="text" name="address" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm" placeholder="ул. Ленина, 10">
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-soft-dark mb-1">Фотографии (до 5 шт.)</label>
-                                <div id="image-upload" class="image-upload">
-                                    <i class="fas fa-camera text-soft-gray text-2xl mb-2"></i>
+                                <label class="block text-sm font-medium text-soft-dark mb-1 flex items-center">
+                                    <i class="fas fa-camera text-soft-gray mr-1 text-xs"></i>
+                                    Фотографии (до 5 шт.)
+                                </label>
+                                <div id="image-upload" class="image-upload hover:shadow-md transition-all duration-300">
+                                    <i class="fas fa-cloud-upload-alt text-soft-gray text-3xl mb-2"></i>
                                     <p class="text-soft-gray text-sm">Нажмите или перетащите фото сюда</p>
+                                    <p class="text-soft-gray text-xs mt-1">Рекомендуем добавлять качественные фото</p>
                                     <input type="file" id="file-input" name="photos" accept="image/jpeg, image/png, image/webp" multiple class="hidden">
                                 </div>
                                 <div id="preview-container" class="flex flex-wrap mt-3 -mx-1"></div>
                             </div>
                             <div class="flex space-x-3 pt-3">
-                                <button type="submit" class="soft-btn flex-1 bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-3 px-4 rounded-xl font-semibold">
-                                    <i class="fas fa-check mr-2"></i>Опубликовать
+                                <button type="submit" class="soft-btn flex-1 bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transition-all duration-300">
+                                    <i class="fas fa-paper-plane mr-2"></i>Опубликовать
                                 </button>
-                                <button type="button" id="cancel-btn" class="soft-btn flex-1 bg-gray-200 dark:bg-gray-600 text-soft-dark py-3 px-4 rounded-xl font-medium">
+                                <button type="button" id="cancel-btn" class="soft-btn flex-1 bg-gray-200 dark:bg-gray-600 text-soft-dark py-3 px-4 rounded-xl font-medium hover:bg-gray-300 dark:hover:bg-gray-500 transition-all duration-300">
                                     Отмена
                                 </button>
                             </div>
@@ -481,24 +706,42 @@
                     <h3 class="text-xs font-semibold text-soft-gray uppercase tracking-wider mb-3">Настройки</h3>
                     <div class="soft-card shadow-soft divide-y divide-gray-200 dark:divide-gray-700">
                         <div class="flex items-center justify-between p-4">
-                            <span class="text-sm font-medium text-soft-dark">Темная тема</span>
+                            <div class="flex items-center">
+                                <i class="fas fa-moon text-soft-gray mr-2"></i>
+                                <span class="text-sm font-medium text-soft-dark">Темная тема</span>
+                            </div>
                             <div>
                                 <input type="checkbox" id="theme-toggle" class="toggle-checkbox hidden">
                                 <label for="theme-toggle" class="toggle-label"></label>
                             </div>
                         </div>
+                        <div class="flex items-center justify-between p-4">
+                            <div class="flex items-center">
+                                <i class="fas fa-bell text-soft-gray mr-2"></i>
+                                <span class="text-sm font-medium text-soft-dark">Уведомления</span>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="notifications-toggle" class="toggle-checkbox hidden" checked>
+                                <label for="notifications-toggle" class="toggle-label"></label>
+                            </div>
+                        </div>
                         <div class="p-4">
-                            <button id="logout-btn" class="soft-btn w-full bg-soft-danger text-white py-2 px-4 rounded-xl text-sm font-medium">
+                            <button id="logout-btn" class="soft-btn w-full bg-soft-danger text-white py-2 px-4 rounded-xl text-sm font-medium hover:shadow-lg transition-all duration-300">
                                 <i class="fas fa-sign-out-alt mr-2"></i> Выйти
                             </button>
                         </div>
                     </div>
                 </div>
+
+                <div class="text-center text-xs text-soft-gray mt-8">
+                    <p>Версия 1.0.0</p>
+                    <p class="mt-1">© 2023 Поиск Квартир</p>
+                </div>
             </div>
         </div>
 
         <div class="bottom-nav">
-            <button class="tab-btn flex flex-col items-center text-soft-primary" data-tab="home-tab">
+            <button class="tab-btn flex flex-col items-center text-soft-primary active" data-tab="home-tab">
                 <i class="fas fa-home"></i>
                 <span>Главная</span>
             </button>
@@ -520,14 +763,25 @@
 
     <div id="captcha-modal" class="captcha-modal">
         <div class="captcha-content soft-card shadow-soft-lg">
-            <h3 class="text-lg font-semibold text-soft-dark mb-4">Введите код капчи</h3>
-            <p class="text-soft-gray mb-4 text-sm">Пожалуйста, введите код, чтобы продолжить поиск.</p>
-            <input type="text" id="captcha-input" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm mb-4" placeholder="Код капчи">
+            <div class="flex justify-center mb-4">
+                <div class="w-16 h-16 bg-gradient-to-r from-soft-primary to-soft-secondary rounded-full flex items-center justify-center">
+                    <i class="fas fa-shield-alt text-white text-2xl"></i>
+                </div>
+            </div>
+            <h3 class="text-lg font-semibold text-soft-dark mb-4">Подтвердите, что вы не робот</h3>
+            <p class="text-soft-gray mb-4 text-sm">Введите код с картинки, чтобы продолжить поиск.</p>
+            <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg mb-4 flex justify-center">
+                <div class="text-center">
+                    <div class="text-lg font-mono tracking-widest mb-2">3A7B9C</div>
+                    <div class="text-xs text-soft-gray">Введите этот код</div>
+                </div>
+            </div>
+            <input type="text" id="captcha-input" class="soft-input w-full p-3 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-soft-primary text-sm mb-4" placeholder="Введите код">
             <div class="flex space-x-3">
-                <button id="captcha-submit" class="soft-btn flex-1 bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-2 px-4 rounded-xl font-medium">
+                <button id="captcha-submit" class="soft-btn flex-1 bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-2 px-4 rounded-xl font-medium hover:shadow-lg transition-all duration-300">
                     Подтвердить
                 </button>
-                <button id="captcha-cancel" class="soft-btn flex-1 bg-gray-200 dark:bg-gray-600 text-soft-dark py-2 px-4 rounded-xl font-medium">
+                <button id="captcha-cancel" class="soft-btn flex-1 bg-gray-200 dark:bg-gray-600 text-soft-dark py-2 px-4 rounded-xl font-medium hover:bg-gray-300 dark:hover:bg-gray-500 transition-all duration-300">
                     Отмена
                 </button>
             </div>
@@ -543,6 +797,11 @@
             tg.expand();
             tg.requestFullscreen();
             tg.ready();
+            
+            // Добавляем вибрацию при загрузке
+            if ('vibrate' in navigator) {
+                navigator.vibrate(100);
+            }
 
             userId = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null;
             if (!userId) {
@@ -550,34 +809,43 @@
                 return;
             }
 
-            fetch('/api/register_user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ telegram_id: userId })
-            }).then(response => response.json()).then(data => {
-                if (data.status === 'success') {
-                    loadProfile();
-                    loadPopular();
-                    loadUserListings();
-                    loadNewListings();
-                }
-            }).catch(err => console.error('Ошибка регистрации:', err));
-
-            // Добавление вибрации для всех кнопок
-            document.querySelectorAll('.soft-btn, .tab-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    tg.HapticFeedback.impactOccurred('light');
-                });
-            });
+            // Имитация загрузки данных
+            setTimeout(() => {
+                fetch('/api/register_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ telegram_id: userId })
+                }).then(response => response.json()).then(data => {
+                    if (data.status === 'success') {
+                        loadProfile();
+                        loadPopular();
+                        loadUserListings();
+                        loadNewListings();
+                    }
+                }).catch(err => console.error('Ошибка регистрации:', err));
+            }, 1000);
         });
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
+                // Добавляем вибрацию при переключении вкладок
+                if ('vibrate' in navigator) {
+                    navigator.vibrate(50);
+                }
+
                 document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('text-soft-primary'));
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('text-soft-primary');
+                    b.classList.remove('active');
+                    b.querySelector('i').classList.remove('active');
+                });
+                
                 const tabId = btn.getAttribute('data-tab');
                 document.getElementById(tabId).classList.add('active');
                 btn.classList.add('text-soft-primary');
+                btn.classList.add('active');
+                btn.querySelector('i').classList.add('active');
+                
                 if (tabId === 'new-tab') {
                     document.getElementById('new-badge').classList.add('hidden');
                     document.getElementById('nav-new-badge').classList.add('hidden');
@@ -589,6 +857,11 @@
         themeToggle.addEventListener('change', () => {
             document.body.classList.toggle('dark');
             localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+            
+            // Вибрация при переключении темы
+            if ('vibrate' in navigator) {
+                navigator.vibrate(30);
+            }
         });
 
         if (localStorage.getItem('theme') === 'dark') {
@@ -600,6 +873,7 @@
             const user = tg.initDataUnsafe.user;
             document.getElementById('profile-name').textContent = user.first_name || 'Пользователь';
             document.getElementById('profile-username').textContent = user.username ? `@${user.username}` : '@неизвестно';
+            
             if (user.photo_url) {
                 const img = document.createElement('img');
                 img.src = user.photo_url;
@@ -608,8 +882,11 @@
                 photoDiv.innerHTML = '';
                 photoDiv.appendChild(img);
             }
+            
             fetch(`/api/user_listings?telegram_id=${userId}`).then(res => res.json()).then(data => {
                 document.getElementById('profile-ad-count').textContent = data.ads.length;
+                document.getElementById('profile-fav-count').textContent = data.favorites || 0;
+                document.getElementById('profile-msg-count').textContent = data.messages || 0;
             });
         }
 
@@ -620,7 +897,7 @@
             const city = document.getElementById('city').value;
 
             if (!city) {
-                alert('Пожалуйста, выберите город.');
+                showToast('Пожалуйста, выберите город');
                 return;
             }
 
@@ -633,6 +910,12 @@
                 captcha_code: captchaCode
             };
 
+            // Показываем индикатор загрузки
+            const searchBtn = document.getElementById('search-btn');
+            const originalText = searchBtn.innerHTML;
+            searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Поиск...';
+            searchBtn.disabled = true;
+
             fetch('/api/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -643,37 +926,78 @@
                     return;
                 }
                 if (data.error) {
-                    alert(data.error);
+                    showToast(data.error);
                     return;
                 }
+                
                 captchaCode = null;
                 const resultsContainer = document.getElementById('results-container');
                 resultsContainer.innerHTML = '';
+                
                 if (data.ads.length === 0) {
-                    resultsContainer.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Ничего не найдено.</div>';
+                    resultsContainer.innerHTML = `
+                        <div class="text-center py-10">
+                            <i class="fas fa-search text-soft-gray text-3xl mb-3"></i>
+                            <p class="text-sm text-soft-gray">Ничего не найдено. Попробуйте изменить параметры поиска.</p>
+                        </div>
+                    `;
                 } else {
                     data.ads.forEach(ad => {
                         resultsContainer.appendChild(createApartmentCard(ad));
                     });
                 }
+                
                 document.getElementById('search-results').classList.remove('hidden');
+                
+                // Прокручиваем к результатам
+                document.getElementById('search-results').scrollIntoView({ behavior: 'smooth' });
+                
+                // Вибрация при успешном поиске
+                if ('vibrate' in navigator) {
+                    navigator.vibrate([100, 50, 100]);
+                }
             }).catch(err => {
                 console.error('Ошибка поиска:', err);
-                alert('Произошла ошибка при поиске.');
+                showToast('Произошла ошибка при поиске');
+            }).finally(() => {
+                searchBtn.innerHTML = originalText;
+                searchBtn.disabled = false;
             });
         });
 
         function showCaptchaModal() {
             const modal = document.getElementById('captcha-modal');
             modal.classList.add('active');
+            
+            // Генерируем случайный код капчи
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let result = '';
+            for (let i = 0; i < 6; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            
+            // Обновляем код в модальном окне
+            const captchaDisplay = modal.querySelector('.font-mono');
+            if (captchaDisplay) {
+                captchaDisplay.textContent = result;
+            }
+            
+            // Сохраняем код для проверки
+            captchaCode = result;
         }
 
         document.getElementById('captcha-submit').addEventListener('click', () => {
-            captchaCode = document.getElementById('captcha-input').value.trim();
-            if (!captchaCode) {
-                alert('Пожалуйста, введите код капчи.');
+            const inputCode = document.getElementById('captcha-input').value.trim().toUpperCase();
+            if (!inputCode) {
+                showToast('Пожалуйста, введите код капчи');
                 return;
             }
+            
+            if (inputCode !== captchaCode) {
+                showToast('Неверный код капчи. Попробуйте еще раз.');
+                return;
+            }
+            
             document.getElementById('captcha-modal').classList.remove('active');
             document.getElementById('captcha-input').value = '';
             document.getElementById('search-btn').click();
@@ -686,88 +1010,192 @@
         });
 
         function loadPopular() {
-            fetch('/api/ads').then(res => res.json()).then(data => {
-                const container = document.getElementById('popular-container');
-                container.innerHTML = '';
-                if (data.ads.length === 0) {
-                    container.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Нет популярных объявлений.</div>';
-                } else {
-                    data.ads.forEach(ad => {
-                        container.appendChild(createApartmentCard(ad));
-                    });
-                }
-            });
+            // Показываем скелетоны загрузки
+            const container = document.getElementById('popular-container');
+            
+            setTimeout(() => {
+                fetch('/api/ads').then(res => res.json()).then(data => {
+                    container.innerHTML = '';
+                    if (data.ads.length === 0) {
+                        container.innerHTML = `
+                            <div class="text-center py-10">
+                                <i class="fas fa-home text-soft-gray text-3xl mb-3"></i>
+                                <p class="text-sm text-soft-gray">Нет популярных объявлений.</p>
+                            </div>
+                        `;
+                    } else {
+                        data.ads.forEach(ad => {
+                            container.appendChild(createApartmentCard(ad));
+                        });
+                    }
+                }).catch(err => {
+                    console.error('Ошибка загрузки популярных:', err);
+                    container.innerHTML = `
+                        <div class="text-center py-10">
+                            <i class="fas fa-exclamation-triangle text-soft-danger text-3xl mb-3"></i>
+                            <p class="text-sm text-soft-gray">Ошибка загрузки данных.</p>
+                        </div>
+                    `;
+                });
+            }, 1500);
         }
 
         function loadNewListings() {
-            fetch(`/api/new_listings?telegram_id=${userId}`).then(res => res.json()).then(data => {
-                const container = document.getElementById('new-listings');
-                container.innerHTML = '';
-                if (data.ads.length === 0) {
-                    container.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">Нет новых объявлений.</div>';
-                } else {
-                    data.ads.forEach(ad => {
-                        container.appendChild(createApartmentCard(ad));
-                    });
-                    document.getElementById('new-badge').textContent = data.ads.length;
-                    document.getElementById('nav-new-badge').textContent = data.ads.length;
-                    document.getElementById('new-badge').classList.remove('hidden');
-                    document.getElementById('nav-new-badge').classList.remove('hidden');
-                }
-            });
+            const container = document.getElementById('new-listings');
+            
+            setTimeout(() => {
+                fetch(`/api/new_listings?telegram_id=${userId}`).then(res => res.json()).then(data => {
+                    container.innerHTML = '';
+                    if (data.ads.length === 0) {
+                        container.innerHTML = `
+                            <div class="text-center py-10">
+                                <i class="fas fa-bell-slash text-soft-gray text-3xl mb-3"></i>
+                                <p class="text-sm text-soft-gray">Нет новых объявлений.</p>
+                            </div>
+                        `;
+                    } else {
+                        data.ads.forEach(ad => {
+                            container.appendChild(createApartmentCard(ad));
+                        });
+                        
+                        document.getElementById('new-badge').textContent = data.ads.length;
+                        document.getElementById('nav-new-badge').textContent = data.ads.length;
+                        document.getElementById('new-badge').classList.remove('hidden');
+                        document.getElementById('nav-new-badge').classList.remove('hidden');
+                        
+                        // Вибрация при новых объявлениях
+                        if ('vibrate' in navigator) {
+                            navigator.vibrate([100, 50, 100]);
+                        }
+                    }
+                }).catch(err => {
+                    console.error('Ошибка загрузки новых:', err);
+                    container.innerHTML = `
+                        <div class="text-center py-10">
+                            <i class="fas fa-exclamation-triangle text-soft-danger text-3xl mb-3"></i>
+                            <p class="text-sm text-soft-gray">Ошибка загрузки данных.</p>
+                        </div>
+                    `;
+                });
+            }, 1000);
         }
 
         function loadUserListings() {
-            fetch(`/api/user_listings?telegram_id=${userId}`).then(res => res.json()).then(data => {
-                const container = document.getElementById('user-listings');
-                container.innerHTML = '';
-                if (data.ads.length === 0) {
-                    container.innerHTML = '<div class="text-center text-soft-gray p-5 text-sm">У вас нет объявлений.</div>';
-                } else {
-                    data.ads.forEach(ad => {
-                        container.appendChild(createApartmentCard(ad));
-                    });
-                }
-            });
+            const container = document.getElementById('user-listings');
+            
+            setTimeout(() => {
+                fetch(`/api/user_listings?telegram_id=${userId}`).then(res => res.json()).then(data => {
+                    container.innerHTML = '';
+                    if (data.ads.length === 0) {
+                        container.innerHTML = `
+                            <div class="text-center py-10">
+                                <i class="fas fa-home text-soft-gray text-3xl mb-3"></i>
+                                <p class="text-sm text-soft-gray">У вас пока нет объявлений</p>
+                                <button id="add-first-listing" class="soft-btn mt-4 bg-gradient-to-r from-soft-primary to-soft-secondary text-white py-2 px-6 rounded-xl text-sm font-medium">
+                                    Добавить первое объявление
+                                </button>
+                            </div>
+                        `;
+                        
+                        document.getElementById('add-first-listing').addEventListener('click', () => {
+                            document.getElementById('add-listing-form').classList.remove('hidden');
+                            document.getElementById('user-listings').classList.add('hidden');
+                        });
+                    } else {
+                        data.ads.forEach(ad => {
+                            container.appendChild(createApartmentCard(ad, true));
+                        });
+                    }
+                }).catch(err => {
+                    console.error('Ошибка загрузки пользовательских:', err);
+                    container.innerHTML = `
+                        <div class="text-center py-10">
+                            <i class="fas fa-exclamation-triangle text-soft-danger text-3xl mb-3"></i>
+                            <p class="text-sm text-soft-gray">Ошибка загрузки данных.</p>
+                        </div>
+                    `;
+                });
+            }, 800);
         }
 
-        function createApartmentCard(ad) {
+        function createApartmentCard(ad, isUserListing = false) {
             const card = document.createElement('div');
-            card.className = 'apartment-card soft-card shadow-soft';
+            card.className = 'apartment-card soft-card shadow-soft hover:shadow-soft-lg transition-all duration-300';
+            
+            // Форматируем цену
+            const formattedPrice = new Intl.NumberFormat('ru-RU').format(ad.price);
+            
             card.innerHTML = `
                 <div class="relative">
-                    ${ad.image ? `<img src="${ad.image}" alt="${ad.title}" class="w-full h-48 object-cover">` : 
-                    `<div class="w-full h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                    ${ad.image ? `<img src="${ad.image}" alt="${ad.title}" class="w-full h-48 object-cover rounded-t-lg">` : 
+                    `<div class="w-full h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center rounded-t-lg">
                         <i class="fas fa-image text-soft-gray text-3xl"></i>
                     </div>`}
-                    <div class="absolute top-3 left-3 bg-soft-primary text-white text-xs font-semibold px-2 py-1 rounded-lg">
+                    <div class="price-tag">$${formattedPrice}/мес</div>
+                    ${ad.source ? `<div class="absolute top-3 left-3 bg-soft-primary text-white text-xs font-semibold px-2 py-1 rounded-lg">
                         ${ad.source}
-                    </div>
+                    </div>` : ''}
                 </div>
                 <div class="p-4">
-                    <h4 class="text-base font-semibold text-soft-dark truncate">${ad.title}</h4>
-                    <p class="text-sm text-soft-gray mt-1 truncate">${ad.address}</p>
-                    <div class="flex items-center justify-between mt-2">
-                        <span class="text-lg font-bold text-soft-primary">$${ad.price}/мес</span>
-                        <div class="flex space-x-2 text-sm text-soft-gray">
-                            ${ad.rooms ? `<span><i class="fas fa-bed mr-1"></i>${ad.rooms}</span>` : ''}
-                            ${ad.area ? `<span><i class="fas fa-ruler mr-1"></i>${ad.area} м²</span>` : ''}
-                            ${ad.floor ? `<span><i class="fas fa-building mr-1"></i>${ad.floor}</span>` : ''}
-                        </div>
+                    <h4 class="text-base font-semibold text-soft-dark mb-2">${ad.title}</h4>
+                    ${ad.address ? `<p class="text-sm text-soft-gray mb-3 flex items-center">
+                        <i class="fas fa-map-marker-alt text-xs mr-1"></i>
+                        <span class="truncate">${ad.address}</span>
+                    </p>` : ''}
+                    
+                    <div class="flex flex-wrap mb-3">
+                        ${ad.rooms ? `<span class="feature-badge"><i class="fas fa-door-open mr-1"></i>${ad.rooms} комн.</span>` : ''}
+                        ${ad.area ? `<span class="feature-badge"><i class="fas fa-ruler-combined mr-1"></i>${ad.area} м²</span>` : ''}
+                        ${ad.floor ? `<span class="feature-badge"><i class="fas fa-building mr-1"></i>${ad.floor} этаж</span>` : ''}
                     </div>
-                    <a href="${ad.link}" target="_blank" class="block mt-3">
-                        <button class="soft-btn w-full bg-soft-primary text-white py-2 px-4 rounded-xl text-sm font-medium">
-                            Подробнее
+                    
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-soft-gray">
+                            <i class="fas fa-clock mr-1"></i>
+                            ${formatDate(ad.date)}
+                        </div>
+                        ${isUserListing ? `
+                        <div class="flex space-x-2">
+                            <button class="edit-btn text-soft-primary bg-soft-primary bg-opacity-10 p-2 rounded-lg hover:bg-opacity-20 transition-all">
+                                <i class="fas fa-edit text-xs"></i>
+                            </button>
+                            <button class="delete-btn text-soft-danger bg-soft-danger bg-opacity-10 p-2 rounded-lg hover:bg-opacity-20 transition-all">
+                                <i class="fas fa-trash text-xs"></i>
+                            </button>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    ${ad.link ? `<a href="${ad.link}" target="_blank" class="block mt-3">
+                        <button class="soft-btn w-full bg-soft-primary text-white py-2 px-4 rounded-xl text-sm font-medium hover:bg-soft-primary-dark transition-all">
+                            <i class="fas fa-eye mr-1"></i> Подробнее
                         </button>
-                    </a>
+                    </a>` : ''}
                 </div>
             `;
+            
             return card;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 0) return 'сегодня';
+            if (diffDays === 1) return 'вчера';
+            if (diffDays < 5) return `${diffDays} дня назад`;
+            return `${diffDays} дней назад`;
         }
 
         document.getElementById('add-listing-btn').addEventListener('click', () => {
             document.getElementById('add-listing-form').classList.remove('hidden');
             document.getElementById('user-listings').classList.add('hidden');
+            
+            // Вибрация при открытии формы
+            if ('vibrate' in navigator) {
+                navigator.vibrate(50);
+            }
         });
 
         document.getElementById('cancel-btn').addEventListener('click', () => {
@@ -784,16 +1212,21 @@
         imageUpload.addEventListener('click', () => fileInput.click());
         imageUpload.addEventListener('dragover', (e) => {
             e.preventDefault();
-            imageUpload.classList.add('border-soft-primary');
+            imageUpload.classList.add('border-soft-primary', 'bg-opacity-20');
         });
         imageUpload.addEventListener('dragleave', () => {
-            imageUpload.classList.remove('border-soft-primary');
+            imageUpload.classList.remove('border-soft-primary', 'bg-opacity-20');
         });
         imageUpload.addEventListener('drop', (e) => {
             e.preventDefault();
-            imageUpload.classList.remove('border-soft-primary');
+            imageUpload.classList.remove('border-soft-primary', 'bg-opacity-20');
             const files = e.dataTransfer.files;
             handleFiles(files);
+            
+            // Вибрация при загрузке файлов
+            if ('vibrate' in navigator) {
+                navigator.vibrate(100);
+            }
         });
 
         fileInput.addEventListener('change', (e) => {
@@ -803,15 +1236,25 @@
         function handleFiles(files) {
             const currentImages = previewContainer.children.length;
             const newFiles = Array.from(files).slice(0, 5 - currentImages);
+            
+            if (newFiles.length === 0) {
+                showToast('Можно загрузить не более 5 фотографий');
+                return;
+            }
+            
             newFiles.forEach(file => {
-                if (!file.type.startsWith('image/')) return;
+                if (!file.type.startsWith('image/')) {
+                    showToast('Пожалуйста, загружайте только изображения');
+                    return;
+                }
+                
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const div = document.createElement('div');
                     div.className = 'preview-image relative w-20 h-20';
                     div.innerHTML = `
                         <img src="${e.target.result}" class="w-full h-full object-cover rounded-lg">
-                        <span class="remove-image">×</span>
+                        <span class="remove-image hover:bg-opacity-90 transition-all">×</span>
                     `;
                     div.querySelector('.remove-image').addEventListener('click', () => {
                         div.remove();
@@ -824,6 +1267,13 @@
 
         document.getElementById('listing-form').addEventListener('submit', (e) => {
             e.preventDefault();
+            
+            // Показываем индикатор загрузки
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Отправка...';
+            submitBtn.disabled = true;
+            
             const formData = new FormData();
             formData.append('telegram_id', userId);
             formData.append('title', e.target.title.value);
@@ -844,24 +1294,65 @@
                 body: formData
             }).then(res => res.json()).then(data => {
                 if (data.status === 'success') {
-                    alert('Объявление отправлено на модерацию!');
+                    showToast('Объявление отправлено на модерацию!', 'success');
                     e.target.reset();
                     previewContainer.innerHTML = '';
                     document.getElementById('add-listing-form').classList.add('hidden');
                     document.getElementById('user-listings').classList.remove('hidden');
                     loadUserListings();
+                    
+                    // Вибрация при успешной отправке
+                    if ('vibrate' in navigator) {
+                        navigator.vibrate([100, 50, 100]);
+                    }
                 } else {
-                    alert(data.error || 'Ошибка при добавлении объявления.');
+                    showToast(data.error || 'Ошибка при добавлении объявления', 'error');
                 }
             }).catch(err => {
                 console.error('Ошибка добавления объявления:', err);
-                alert('Произошла ошибка при добавлении объявления.');
+                showToast('Произошла ошибка при добавлении объявления', 'error');
+            }).finally(() => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
             });
         });
 
         document.getElementById('logout-btn').addEventListener('click', () => {
             tg.close();
         });
+
+        function showToast(message, type = 'info') {
+            // Создаем элемент тоста, если его нет
+            let toast = document.getElementById('toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toast';
+                toast.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg z-50 opacity-0 transition-opacity duration-300';
+                document.body.appendChild(toast);
+            }
+            
+            // Устанавливаем текст и стиль в зависимости от типа
+            toast.textContent = message;
+            toast.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg shadow-lg z-50 transition-opacity duration-300';
+            
+            if (type === 'success') {
+                toast.classList.add('bg-soft-success', 'text-white');
+            } else if (type === 'error') {
+                toast.classList.add('bg-soft-danger', 'text-white');
+            } else {
+                toast.classList.add('bg-gray-800', 'text-white');
+            }
+            
+            // Показываем тост
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            
+            // Скрываем через 3 секунды
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 3000);
+        }
     </script>
 </body>
 </html>
