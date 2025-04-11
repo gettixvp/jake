@@ -3,10 +3,9 @@ import asyncio
 import re
 import urllib.parse
 import os
-import secrets  # Для генерации случайного ID
+import secrets
 from typing import List, Dict, Optional
 from flask import Flask, request, jsonify, send_from_directory
-import flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.error import Forbidden, TimedOut
@@ -17,6 +16,11 @@ import hypercorn.asyncio
 from hypercorn.config import Config
 import psycopg2
 from psycopg2.extras import DictCursor
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
+import time
 
 # --- Configuration ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7846698102:AAFR2bhmjAkPiV-PjtnFIu_oRnzxYPP1xVo")
@@ -28,18 +32,11 @@ REQUEST_TIMEOUT = 10
 PARSE_INTERVAL = 30  # Интервал парсинга в минутах
 REQUEST_DELAY = 5    # Задержка между запросами в секундах
 KUFAR_LIMIT = 7
+ONLINER_LIMIT = 7
 
 # --- Logging Setup ---
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Отладка: Проверка версии Flask
-logger.info(f"Flask version: {flask.__version__}")
-try:
-    from flask import async_to_sync  # Проверка наличия асинхронной поддержки
-    logger.info("Flask async support detected")
-except ImportError:
-    logger.error("Flask async support NOT detected")
 
 # --- Constants ---
 CITIES = {
@@ -49,6 +46,15 @@ CITIES = {
     "gomel": "🌆 Гомель",
     "vitebsk": "🏙 Витебск",
     "mogilev": "🏞️ Могилев",
+}
+
+ONLINER_CITY_URLS = {
+    "minsk": "https://r.onliner.by/ak/#bounds[lb][lat]=53.820922446131&bounds[lb][long]=27.344970703125&bounds[rt][lat]=53.97547425743&bounds[rt][long]=27.77961730957",
+    "brest": "https://r.onliner.by/ak/#bounds[lb][lat]=51.941725203142&bounds[lb][long]=23.492889404297&bounds[rt][lat]=52.234528294214&bounds[rt][long]=23.927536010742",
+    "vitebsk": "https://r.onliner.by/ak/#bounds[lb][lat]=55.085834940707&bounds[lb][long]=29.979629516602&bounds[rt][lat]=55.357648391381&bounds[rt][long]=30.414276123047",
+    "gomel": "https://r.onliner.by/ak/#bounds[lb][lat]=52.302600726968&bounds[lb][long]=30.732192993164&bounds[rt][lat]=52.593037841157&bounds[rt][long]=31.166839599609",
+    "grodno": "https://r.onliner.by/ak/#bounds[lb][lat]=53.538267122397&bounds[lb][long]=23.629531860352&bounds[rt][lat]=53.820517109806&bounds[rt][long]=24.064178466797",
+    "mogilev": "https://r.onliner.by/ak/#bounds[lb][lat]=53.74261986683&bounds[lb][long]=30.132064819336&bounds[rt][lat]=54.023503252809&bounds[rt][long]=30.566711425781",
 }
 
 # --- Database Initialization ---
@@ -75,7 +81,7 @@ def init_db():
             cur.execute("""
                 CREATE TABLE ads (
                     link TEXT PRIMARY KEY,
-                    source TEXT NOT NULL CHECK (source IN ('Kufar', 'User')),
+                    source TEXT NOT NULL CHECK (source IN ('Kufar', 'Onliner', 'User')),
                     city TEXT,
                     price INTEGER CHECK (price >= 0),
                     rooms TEXT,
@@ -202,6 +208,122 @@ class KufarParser:
         rooms_valid = target_rooms is None or rooms == target_rooms
         return price_valid and rooms_valid
 
+# --- Onliner Parser ---
+class OnlinerParser:
+    @staticmethod
+    def fetch_ads(city: str, min_price: Optional[int] = None, max_price: Optional[int] = None, rooms: Optional[str] = None) -> List[Dict]:
+        results = []
+        base_url = ONLINER_CITY_URLS.get(city)
+        if not base_url:
+            logger.error(f"Неизвестный город для Onliner: {city}")
+            return results
+
+        query_params = {}
+        if rooms:
+            if rooms == "studio":
+                query_params["rent_type[]"] = "room"
+            else:
+                query_params["rent_type[]"] = f"{rooms}_rooms" if rooms != "4+" else "4_rooms"
+        if min_price and max_price:
+            query_params["price[min]"] = min_price
+            query_params["price[max]"] = max_price
+            query_params["currency"] = "usd"
+
+        url = base_url if not query_params else f"https://r.onliner.by/ak/?{urllib.parse.urlencode(query_params)}#{base_url.split('#')[1]}"
+        logger.info(f"Fetching Onliner ads from: {url}")
+
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument(f"user-agent={USER_AGENT}")
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+
+        try:
+            driver.get(url)
+            time.sleep(5)
+            soup = BeautifulSoup(driver.page_source, "html.parser")
+            ads = soup.select("a[href*='/ak/apartments/']")[:ONLINER_LIMIT]
+            logger.info(f"Found {len(ads)} potential ad links")
+
+            for ad in ads:
+                try:
+                    link = ad.get("href", "")
+                    if not link.startswith("https://r.onliner.by/ak/apartments/"):
+                        continue
+                    price = OnlinerParser._parse_price(ad)
+                    room_count = OnlinerParser._parse_rooms(ad)
+                    if OnlinerParser._check_filters(price, room_count, min_price, max_price, rooms):
+                        results.append({
+                            "link": link,
+                            "source": "Onliner",
+                            "city": city,
+                            "price": price,
+                            "rooms": room_count,
+                            "area": None,  # Поле не парсится в текущей реализации
+                            "floor": None,  # Поле не парсится в текущей реализации
+                            "address": OnlinerParser._parse_address(ad),
+                            "image": OnlinerParser._parse_image(ad),
+                            "title": OnlinerParser._parse_title(ad),
+                            "description": OnlinerParser._parse_description(ad),
+                            "user_anon_id": None
+                        })
+                except Exception as e:
+                    logger.error(f"Ошибка парсинга объявления Onliner: {e}")
+            logger.info(f"Parsed {len(results)} valid ads from Onliner")
+        except Exception as e:
+            logger.error(f"Ошибка загрузки страницы Onliner: {e}")
+        finally:
+            driver.quit()
+        return results
+
+    @staticmethod
+    def _parse_price(ad) -> Optional[int]:
+        price_element = ad.select_one(".classified__price-value span[data-bind*='formatPrice']")
+        if price_element:
+            price_text = price_element.text.strip()
+            return int(re.sub(r"[^\d]", "", price_text)) if price_text else None
+        return None
+
+    @staticmethod
+    def _parse_rooms(ad) -> Optional[str]:
+        rooms_element = ad.select_one(".classified__caption-item.classified__caption-item_type")
+        if rooms_element:
+            text = rooms_element.text.lower()
+            if "студия" in text:
+                return "studio"
+            match = re.search(r"(\d+)-комнатная", text)
+            if match:
+                rooms = int(match.group(1))
+                return f"{rooms}" if rooms < 4 else "4+"
+        return None
+
+    @staticmethod
+    def _parse_address(ad) -> str:
+        address_element = ad.select_one(".classified__caption-item.classified__caption-item_adress")
+        return address_element.text.strip() if address_element else "Адрес не указан"
+
+    @staticmethod
+    def _parse_image(ad) -> Optional[str]:
+        image_element = ad.select_one(".classified__figure img")
+        return image_element.get("src") if image_element else None
+
+    @staticmethod
+    def _parse_title(ad) -> str:
+        title_element = ad.select_one(".classified__title")
+        return title_element.text.strip() if title_element else "Без заголовка"
+
+    @staticmethod
+    def _parse_description(ad) -> str:
+        desc_element = ad.select_one(".classified__description")
+        return desc_element.text.strip() if desc_element else "Описание не указано"
+
+    @staticmethod
+    def _check_filters(price: Optional[int], rooms: Optional[str], min_price: Optional[int], max_price: Optional[int], target_rooms: Optional[str]) -> bool:
+        if price is None:
+            return False
+        price_valid = (min_price is None or price >= min_price) and (max_price is None or price <= max_price)
+        rooms_valid = target_rooms is None or rooms == target_rooms
+        return price_valid and rooms_valid
+
 # --- Database Operations ---
 def store_ads(ads: List[Dict]) -> int:
     if not ads: return 0
@@ -240,15 +362,13 @@ async def get_or_create_user(bot, telegram_id: int) -> Dict:
     try:
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            # Проверяем, есть ли пользователь
             cur.execute("SELECT * FROM users WHERE telegram_id = %s", (telegram_id,))
             user = cur.fetchone()
             if user:
                 return dict(user)
 
-            # Если нет, получаем данные из Telegram и создаём запись
             telegram_user = await bot.get_chat(telegram_id)
-            anon_id = secrets.token_hex(8)  # Генерируем случайный ID (16 символов)
+            anon_id = secrets.token_hex(8)
             cur.execute("""
                 INSERT INTO users (anon_id, telegram_id, first_name, last_name, username)
                 VALUES (%s, %s, %s, %s, %s)
@@ -280,12 +400,18 @@ async def search_api():
             data.get('max_price'),
             data.get('rooms')
         )
-        logger.info(f"Fetched {len(kufar_ads)} Kufar ads")
+        onliner_ads = await asyncio.to_thread(OnlinerParser.fetch_ads,
+            data['city'],
+            data.get('min_price'),
+            data.get('max_price'),
+            data.get('rooms')
+        )
+        ads = kufar_ads + onliner_ads
+        logger.info(f"Fetched {len(ads)} ads (Kufar: {len(kufar_ads)}, Onliner: {len(onliner_ads)})")
     except Exception as e:
-        logger.error(f"Error fetching Kufar ads: {e}")
-        return jsonify({"error": "Failed to fetch Kufar ads"}), 500
+        logger.error(f"Error fetching ads: {e}")
+        return jsonify({"error": "Failed to fetch ads"}), 500
 
-    ads = kufar_ads
     try:
         store_ads(ads)
         logger.info(f"Stored {len(ads)} ads")
@@ -321,12 +447,10 @@ async def add_listing_api():
         area = int(form['area']) if form.get('area') and form['area'].isdigit() else None
         image_filenames = ','.join([f.filename for f in files if f]) if files else None
 
-        # Получаем или создаём пользователя
         user = await get_or_create_user(bot_application.bot, telegram_id)
         if not user:
             return jsonify({"error": "Failed to fetch/create user"}), 500
 
-        # Добавляем объявление в pending_listings
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
             cur.execute("""
@@ -336,7 +460,6 @@ async def add_listing_api():
             listing_id = cur.fetchone()[0]
             conn.commit()
 
-        # Отправляем уведомление администратору
         username = user['username'] if user['username'] else f"User_{user['anon_id']}"
         await bot_application.bot.send_message(
             chat_id=ADMIN_ID,
@@ -383,7 +506,7 @@ def ads_api():
     try:
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute("SELECT * FROM ads WHERE source = 'Kufar' ORDER BY created_at DESC LIMIT 10")
+            cur.execute("SELECT * FROM ads WHERE source IN ('Kufar', 'Onliner') ORDER BY created_at DESC LIMIT 10")
             ads = [dict(ad) for ad in cur.fetchall()]
         return jsonify({"ads": ads})
     except Exception as e:
@@ -403,7 +526,7 @@ def new_listings_api():
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor(cursor_factory=DictCursor) as cur:
             cur.execute("""
-                SELECT * FROM ads WHERE source = 'Kufar' AND created_at > NOW() - INTERVAL '24 hours'
+                SELECT * FROM ads WHERE source IN ('Kufar', 'Onliner') AND created_at > NOW() - INTERVAL '24 hours'
                 ORDER BY created_at DESC LIMIT 10
             """)
             ads = [dict(ad) for ad in cur.fetchall()]
@@ -468,7 +591,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                           listing['address'], listing['image_filenames'], listing['title'], listing['description'], listing['user_anon_id']))
                 conn.commit()
                 await query.edit_message_text(f"Объявление #{listing_id} {'одобрено' if action == 'approved' else 'отклонено'}.")
-                # Получаем Telegram ID пользователя для уведомления
                 cur.execute("SELECT telegram_id FROM users WHERE anon_id = %s", (listing['user_anon_id'],))
                 telegram_id = cur.fetchone()['telegram_id']
                 await context.bot.send_message(
@@ -497,7 +619,8 @@ async def fetch_and_store_ads():
     for city in CITIES.keys():
         logger.info(f"Starting parsing for city: {city}")
         kufar_ads = await KufarParser.fetch_ads(city)
-        total_ads = kufar_ads
+        onliner_ads = await asyncio.to_thread(OnlinerParser.fetch_ads, city)
+        total_ads = kufar_ads + onliner_ads
         if total_ads:
             store_ads(total_ads)
             logger.info(f"Stored {len(total_ads)} ads for {city}")
