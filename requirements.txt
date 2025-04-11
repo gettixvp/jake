@@ -7,3 +7,5 @@ psycopg2-binary==2.9.9
 pytelegrambotapi==4.15.0
 selenium==4.25.0
 webdriver-manager==4.0.2
+python-telegram-bot
+requests==2.32.3
